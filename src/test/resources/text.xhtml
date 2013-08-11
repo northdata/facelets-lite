@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="#{lang}" xmlns:ui="http://java.sun.com/jsf/facelets" xmlns:c="http://java.sun.com/jsp/jstl/core" xmlns:j="http://beetmobile.com">
+	<c:set var="yo" value="1"/>
+	<j:page nav="account" noindex="true">
+        <h1>Password ändern, #{yo}. Versuch</h1>
+		<j:newPasswordForm/>
+		<c:if test="#{yo==1}">
+			Erster
+		</c:if>
+		<c:if test="#{yo gt 1}">
+			weiterer
+		</c:if>
+	</j:page>
+</html>

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+	<c:set var="test" value="1"/>
+	VORHER
+	<c:if test="#{test==1}">
+		EINS
+	</c:if>
+	NACHHER
+	 
+	KOMMT ÜBERHAUPT NOCH WAS
+	<p>
+		Hallo
+	</p>
+	<c:if test="#{test gt 1}">
+		GT
+	</c:if>
+	<c:if test="#{test ge 1}">
+		GE
+	</c:if>
+	<c:if test="#{!(test ge 1)}">
+		NOT GE
+	</c:if>
+	<c:if test="#{test==1}">
+		HIER!
+	</c:if>
+	FINAL
+</html>
