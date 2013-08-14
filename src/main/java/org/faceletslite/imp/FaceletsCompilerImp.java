@@ -464,7 +464,8 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 						process(
 							targetParent,
 							fragment.getNodes(),
-							fragment.getContext(),
+							context,
+							//fragment.getContext(),
 							fragment.getDefinitions()
 						);
 	    			}
