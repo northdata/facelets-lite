@@ -348,7 +348,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 			        return;
 				}
 				if ("if".equals(tagName)) {
-					Object test = requiredAttr(element, "test", Object.class);
+					Object test = attr(element, "test", Object.class);
 					String var = attr(element, "var", String.class);
 					if (Is.conditionTrue(test)) {
 						process(
@@ -441,13 +441,14 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 	    		}
 	    		if ("include".equals(tagName)) {
 	    			String src = attr(element, "src", String.class);
+	    			MutableContext newContext = collectParams(element);
 	    			if (Is.empty(src)) {
-	    				process(targetParent, element.getChildNodes(), context, defines);
+	    				process(targetParent, element.getChildNodes(), newContext, defines);
 	    			}
 	    			else {
 		    			try {
 		    				compile(normalizeResourceNamePath(src), getNamespace())
-		    					.process(targetParent, context, defines);
+		    					.process(targetParent, newContext, defines);
 		    			}
 		    			catch (IOException exc) {
 		    				throw throwException("cannot include '"+src+"'", exc);
@@ -480,13 +481,13 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 	    				applyTemplate(element, templateAttr);
 	    			}
 	    			else {
-	    				process(targetParent, element.getChildNodes(), context, collectDefines(element));
+	    				process(targetParent, element.getChildNodes(), context, defines);
 	    			}
 	    			return;
 	    		}
 	    		if ("component".equals(tagName) || "fragment".equals(tagName))
 	    		{
-    				process(targetParent, element.getChildNodes(), context, collectDefines(element));
+    				process(targetParent, element.getChildNodes(), context, defines);
 	    			return;
 	    		}
 	    		if ("decorate".equals(tagName)) {
@@ -647,10 +648,11 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 	    	{
 				MutableContext result = new MutableContext(context);
 				for (Element param: Dom.childrenByTagName(parent, Namespaces.UI, "param")) {
-					context.put(
+					result.put(
 						requiredAttr(param, "name", String.class),
 						requiredAttr(param, "value", Object.class)
 					);
+					parent.removeChild(param);
 				}
 				return result;
 	    	}
@@ -719,6 +721,11 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 		public Map<String, SourceFragment> getDefinitions() 
 		{
 			return defines;
+		}
+		
+		public String toString()
+		{
+			return nodes.getLength()==0 ? "[]" : nodes.item(0).getParentNode().toString();
 		}
 	}
 	
@@ -875,7 +882,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 				Node node = nodeList.item(i);
 				if (node instanceof Element) {
 					Element element = (Element)node;
-					if (element.getLocalName().equals(tagName) && Safe.equals(element.getNamespaceURI(), nsUri))
+					if (element.getLocalName().equals(tagName) && Safe.equals(nsUri(element), nsUri))
 					{
 						elements.add((Element)node);
 					}
