@@ -60,7 +60,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler
     		@Override public DocumentBuilder create() {
     			DocumentBuilder result = configuration.createDocumentBuilder();
     			if (!result.isNamespaceAware()) {
-    				throw new RuntimeException("document builder factory must be set to namespace aware.");
+    				throw new RuntimeException("document builder factory must be set to namespace-aware.");
     			}
     			result.reset();
     			return result;
@@ -361,9 +361,9 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 					return;
 				}
 				if ("forEach".equalsIgnoreCase(tagName)) {
-			        List<?> items = attr(element, "items", List.class);
+			        Collection<?> items = attr(element, "items", Collection.class);
 			        if (items==null) {
-			        	items = new ArrayList<Object>();
+			        	items = Collections.emptyList();
 			        }
 			        String var = attr(element, "var", String.class);
 			        String varStatus = attr(element, "varStatus", String.class);
@@ -374,7 +374,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 			        	Safe.toInt(begin, 0),
 			        	Safe.toInt(end, items.size()-1),
 			        	Safe.toInt(step, 1),
-				        	items
+			        	new ArrayList<Object>(items)
 			        );
 			        while (status.hasNext()) {
 			        	process(
@@ -447,7 +447,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 	    			}
 	    			else {
 		    			try {
-		    				compile(normalizeResourceNamePath(src), getNamespace())
+		    				compile(normalizeResourceNamePath(src), Namespaces.None)
 		    					.process(targetParent, newContext, defines);
 		    			}
 		    			catch (IOException exc) {
