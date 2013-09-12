@@ -238,21 +238,6 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			return namespace;
 		}
 
-		RuntimeException throwException(String message, Exception reason)
-		{
-			message += "\r\n\t(while parsing '"+getResourceName()+"'";
-			if (Is.notEmpty(namespace)) {
-				message += ", namespace "+namespace;
-			}
-			message += ")";
-			throw new RuntimeException(message, reason);
-		}
-		
-		RuntimeException throwException(String message)
-		{
-			throw throwException(message, null);
-		}
-		
 		String getResourcePath()
 		{
 			String result = "";
@@ -271,16 +256,31 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			}
 			return resourceName;
 		}
+
+		RuntimeException error(String message, Exception reason)
+		{
+			message += "\r\n\t(while parsing '"+getResourceName()+"'";
+			if (Is.notEmpty(namespace)) {
+				message += ", namespace "+namespace;
+			}
+			message += ")";
+			throw new RuntimeException(message, reason);
+		}
+		
+		RuntimeException error(String message)
+		{
+			throw error(message, null);
+		}
 		
 		public String render(Object context) 
 		{
 			Document targetDocument = newDocument();
-			DocumentFragment targetDocumentFragment = targetDocument.createDocumentFragment();
+			DocumentFragment targetFragment = targetDocument.createDocumentFragment();
 			Dom.appendChildren(
-				targetDocumentFragment,
+				targetFragment,
 				process(targetDocument, new MutableContext().scope(context), null)
 			);
-			return "<!DOCTYPE html>"+"\r\n"+html(targetDocumentFragment);
+			return "<!DOCTYPE html>"+"\r\n"+html(targetFragment);
 		}
 		
 		List<Node> process(Document targetDocument, MutableContext context, Map<String, SourceFragment> defines) 
@@ -288,8 +288,8 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			Document workingCopy = sourceDocumentWorkingCopies.get();
 			try
 			{
-				Node root = getRootNode(workingCopy);
-				return processor(targetDocument, context, defines).compile(root);
+				Node sourceRoot = getRootNode(workingCopy);
+				return new Processor(targetDocument, context, defines).compile(sourceRoot);
 			}
 			finally {
 				sourceDocumentWorkingCopies.release(workingCopy);
@@ -307,11 +307,6 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	    	return sourceDocument;
 		}
 		
-		Processor processor(Document targetDocument, MutableContext context, Map<String, SourceFragment> defines)
-		{
-			return new Processor(targetDocument, context, defines);
-		}
-
 		class Processor implements CustomTag.Processor
 		{
 			private final Document targetDocument;
@@ -325,8 +320,8 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 				this.defines = defines;
 			}
 			
-			@Override
-			public Document getTargetDocument() {
+			public Document getTargetDocument() 
+			{
 				return targetDocument;
 			}
 			
@@ -413,7 +408,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 						return compileChildren(otherwise);
 					}
 				}
-				throw throwException("invalid core tag name '"+tagName+"'");
+				throw error("invalid core tag name '"+tagName+"'");
 	    	}
 	    		
 			List<Node> compileUiTag(Element element) 
@@ -436,7 +431,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		    				return template.process(targetDocument, newContext, defines);
 		    			}
 		    			catch (IOException exc) {
-		    				throw throwException("cannot include '"+src+"'", exc);
+		    				throw error("cannot include '"+src+"'", exc);
 		    			}
 	    			}
 	    		}
@@ -480,14 +475,14 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 					return nodes();
 				}
 	    		if ("param".equals(tagName)) {
-	    			throw throwException(element.getNodeName()
+	    			throw error(element.getNodeName()
 	    				+" only allowed as child of :include, :composition or :decorate tag");
 				}
 	    		if ("define".equals(tagName)) {
-	    			throw throwException(element.getNodeName()
+	    			throw error(element.getNodeName()
 	    				+" only allowed as child of :composition, :component, :decorate, :frament or custom tag");
 				}
-	    		throw throwException("invalid ui tag name '"+tagName+"'");
+	    		throw error("invalid ui tag name '"+tagName+"'");
 	    	}
 
 			List<Node> compileJsfHTag(Element element) 
@@ -503,7 +498,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 						return text(value, escape==null || !escape.equals(Boolean.FALSE));
 					}
 				}
-				throw throwException("invalid h tag name '"+tagName+"'");
+				throw error("invalid h tag name '"+tagName+"'");
 			}
 	    	
 			List<Node> compileCustomTag(Element element)
@@ -533,7 +528,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 					);
 				} 
 				catch (IOException exc) {
-					throw throwException("cannot load "+element.getPrefix()+":"+tagName, exc);
+					throw error("cannot load "+element.getPrefix()+":"+tagName, exc);
 				}
 			}
 			
@@ -615,7 +610,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 					);
 				}
 				catch (IOException exc) {
-					throw throwException("cannot read template '"+templateAttr+"'", exc);
+					throw error("cannot read template '"+templateAttr+"'", exc);
 				}
 			}
 			
@@ -700,7 +695,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		    {
 		    	T result = attr(element, name, clazz);
 		    	if (Is.empty(result)) {
-		    		throw throwException("missing attribute '"+name+"' in "+element.getTagName());
+		    		throw error("missing attribute '"+name+"' in "+element.getTagName());
 		    	}
 		    	return result;
 		    }
@@ -713,7 +708,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		    	} 
 		    	catch (RuntimeException exc) {
 		    		String message = text+" expression evaluation failed:\r\n\t"+exc.getMessage();
-		    		throw throwException(message, exc);
+		    		throw error(message, exc);
 		    	}
 		    }
 		}
