@@ -3,7 +3,6 @@ package org.faceletslite.imp;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
-import java.io.Writer;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.logging.Level;
@@ -24,12 +23,13 @@ import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 
  
-public class FaceletsCompilerImp implements FaceletsCompiler 
+public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 {
 	public interface Namespaces 
 	{
 		String UI = "http://java.sun.com/jsf/facelets";
-	    String Core = "http://java.sun.com/jsp/jstl/core";
+	    String Core = "http://java.sun.com/jstl/core";
+	    String JspCore = "http://java.sun.com/jsp/jstl/core";
 	    String JsfH = "http://java.sun.com/jsf/html";
 	    String Xhtml = "http://www.w3.org/1999/xhtml"; 
 	    String None = "";
@@ -38,6 +38,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 	private static final Logger log = Logger.getLogger(FaceletsCompiler.class.getName());
 	
     private final Map<String, ResourceReader> resourceReaderByNsUri = new HashMap<String, ResourceReader>();
+    private final Map<String, Namespace> namespaceByUri = new HashMap<String, Namespace>();
 	private final ExpressionFactory expressionFactory;
 	private final FunctionMapper functionMapper;
 	private final ELResolver resolver;
@@ -79,7 +80,12 @@ public class FaceletsCompilerImp implements FaceletsCompiler
     	}
     	for (Namespace namespace: configuration.getCustomNamespaces())
     	{
-    		resourceReaderByNsUri.put(namespace.getUri(), namespace.getResourceReader());
+    		String nsUri = namespace.getUri();
+    		namespaceByUri.put(nsUri, namespace);
+    		ResourceReader resourceReader = namespace.getResourceReader();
+    		if (resourceReader!=null) {
+    			resourceReaderByNsUri.put(nsUri, resourceReader);
+    		}
     	}
 	}
     
@@ -155,6 +161,30 @@ public class FaceletsCompilerImp implements FaceletsCompiler
     	}
     }
     
+	public String html(Node node)
+	{
+		StringWriter writer = new StringWriter();
+		Transformer documentWriter = documentTransformerPool.get();
+		documentWriter.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+		documentWriter.setOutputProperty(OutputKeys.INDENT, "no");
+		documentWriter.setOutputProperty(OutputKeys.METHOD, "html");
+	    documentWriter.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+		try
+		{
+			documentWriter.transform(new DOMSource(node), new StreamResult(writer));
+			writer.flush();
+			return writer.toString();
+		}
+		catch (TransformerException exc)
+		{
+			throw new RuntimeException("cannot write", exc);
+		}
+		finally
+		{
+			documentTransformerPool.release(documentWriter);
+		}
+	}
+	
     private Document newDocument()
     { 
     	DocumentBuilder builder = documentBuilderPool.get();
@@ -242,41 +272,11 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 			return resourceName;
 		}
 		
-		public void write(Object context, Writer writer)  
+		public String render(Object context) 
 		{
 			DocumentFragment targetDocument = newDocument().createDocumentFragment();
 			process(targetDocument, new MutableContext().scope(context), null);
-			Transformer documentWriter = documentTransformerPool.get();
-			documentWriter.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
-			documentWriter.setOutputProperty(OutputKeys.INDENT, "yes");
-			documentWriter.setOutputProperty(OutputKeys.METHOD, "html");
-		    documentWriter.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
-			try
-			{
-				String docType = "<!DOCTYPE html>";
-				writer.append(docType+"\r\n"); // avoid messy DOM doctype handling!
-				documentWriter.transform(new DOMSource(targetDocument), new StreamResult(writer));
-				writer.flush();
-			}
-			catch (IOException exc)
-			{
-				throw new RuntimeException("cannot write", exc);
-			}
-			catch (TransformerException exc)
-			{
-				throw new RuntimeException("cannot write", exc);
-			}
-			finally
-			{
-				documentTransformerPool.release(documentWriter);
-			}
-		}
-		
-		public String render(Object context) 
-		{
-			StringWriter writer = new StringWriter();
-			write(context, writer);
-			return writer.toString();
+			return "<!DOCTYPE html>"+"\r\n"+html(targetDocument);
 		}
 		
 		void process(Node targetParent, MutableContext context, Map<String, SourceFragment> defines) 
@@ -284,8 +284,8 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 			Document workingCopy = sourceDocumentWorkingCopies.get();
 			try
 			{
-				Node sourceParent = getRootNode(workingCopy);
-		    	process(targetParent, sourceParent.getChildNodes(), context, defines);
+				Node root = getRootNode(workingCopy);
+				new Processor(targetParent, context, defines).handle(root);
 			}
 			finally {
 				sourceDocumentWorkingCopies.release(workingCopy);
@@ -303,22 +303,27 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 	    	return sourceDocument;
 		}
 		
-		void process(Node targetParent, NodeList nodes, MutableContext context, Map<String, SourceFragment> defines)
+		Processor processor(Node targetParent, MutableContext context, Map<String, SourceFragment> defines)
 		{
-			new Handler(targetParent, context, defines).handle(nodes);
+			return new Processor(targetParent, context, defines);
 		}
-		
-		class Handler
+
+		class Processor implements CustomTag.Processor
 		{
 			private final Node targetParent;
 			private final Map<String, SourceFragment> defines;
 			private MutableContext context;
 			
-			public Handler(Node targetParent, MutableContext context, Map<String, SourceFragment> defines) 
+			public Processor(Node targetParent, MutableContext context, Map<String, SourceFragment> defines) 
 			{
 				this.targetParent = targetParent;
 				this.context = context;
 				this.defines = defines;
+			}
+			
+			@Override
+			public Node getTargetParent() {
+				return targetParent;
 			}
 			
 			void handleHtmlTag(Element element)
@@ -326,15 +331,15 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 				Element newElement = document().createElement(element.getTagName());
 	    		for (Attr attr: Dom.attrs(element))
 	    		{
-	    			if (Is.empty(Dom.nsUri(attr))) {
-			    		String name = attr.getName(); 
+		    		String name = attr.getName(); 
+	    			if (isHtmlNamespace(Dom.nsUri(attr)) && !name.startsWith("xmlns")) {
 						String newValue = eval(attr);
 						if (Is.notEmpty(newValue)) {
 							newElement.setAttribute(name, newValue);
 						}
 	    			}
 	    		}
-				process(newElement, element.getChildNodes(), context, defines);
+				processor(newElement, context, defines).handleChildren(element);
 				targetParent.appendChild(newElement);	
 			}
 			
@@ -351,12 +356,11 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 					Object test = attr(element, "test", Object.class);
 					String var = attr(element, "var", String.class);
 					if (Is.conditionTrue(test)) {
-						process(
+						processor(
 							targetParent,
-							element.getChildNodes(),
 							new MutableContext(context).put(var, test),
 							defines
-						);
+						).handleChildren(element);
 					}
 					return;
 				}
@@ -377,14 +381,13 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 			        	new ArrayList<Object>(items)
 			        );
 			        while (status.hasNext()) {
-			        	process(
+			        	processor(
 			        		targetParent,
-			        		element.getChildNodes(),
 			        		new MutableContext(context)
 			        			.put(var, status.getCurrent())
 			        			.put(varStatus, status),
 			        		defines
-			        	);
+			        	).handleChildren(element);
 						status.next();
 			        }
 			        return;
@@ -393,32 +396,12 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 					for (Element when: Dom.childrenByTagName(element, Namespaces.Core, "when")) {
 						boolean test = requiredAttr(when, "test", Boolean.class);
 						if (test) {
-							process(
-								targetParent,
-								when.getChildNodes(),
-								context,
-								defines
-							);
+							handleChildren(when);
 							return;
 						}
 					}
 					for (Element otherwise: Dom.childrenByTagName(element, Namespaces.Core, "otherwise")) {
-						process(targetParent, otherwise.getChildNodes(), context, defines);
-					}
-					return;
-				}
-				if ("catch".equals(tagName)) {
-					try {
-						process(
-			        		targetParent,
-			        		element.getChildNodes(),
-			        		context,
-			        		defines
-			        	);
-					}
-					catch (Exception exc) {
-				        String var = requiredAttr(element, "var", String.class);
-				        context.put(var, exc);
+						handleChildren(otherwise);
 					}
 					return;
 				}
@@ -431,19 +414,14 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 	    		if ("with".equals(tagName)) {
 	    			Object value = attr(element, "value", Object.class);
 	    			MutableContext newContext = value==null ? context : new MutableContext(context).scope(value); 
-					process(
-						targetParent,
-						element.getChildNodes(),
-						newContext,
-						defines
-					);
+					processor(targetParent, newContext, defines).handleChildren(element);
 	    			return;
 	    		}
 	    		if ("include".equals(tagName)) {
 	    			String src = attr(element, "src", String.class);
 	    			MutableContext newContext = collectParams(element);
 	    			if (Is.empty(src)) {
-	    				process(targetParent, element.getChildNodes(), newContext, defines);
+	    				processor(targetParent, newContext, defines).handleChildren(element);
 	    			}
 	    			else {
 		    			try {
@@ -461,17 +439,12 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 	    			if (name==null) { name = ""; }
 	    			SourceFragment fragment = defines==null ? null : defines.get(name);
 	    			if (fragment!=null) {
-						process(
-							targetParent,
-							fragment.getNodes(),
-							context,
-							//fragment.getContext(),
-							fragment.getDefinitions()
-						);
+						processor(targetParent, context, fragment.getDefinitions())
+							.handleChildren(fragment.getRoot());
 	    			}
 	    			else
 	    			{
-	    				process(targetParent, element.getChildNodes(), context, defines);
+	    				handleChildren(element);
 	    			}
 	    			return;
 	    		}
@@ -482,13 +455,13 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 	    				applyTemplate(element, templateAttr);
 	    			}
 	    			else {
-	    				process(targetParent, element.getChildNodes(), context, defines);
+	    				handleChildren(element);
 	    			}
 	    			return;
 	    		}
 	    		if ("component".equals(tagName) || "fragment".equals(tagName))
 	    		{
-    				process(targetParent, element.getChildNodes(), context, defines);
+    				handleChildren(element);
 	    			return;
 	    		}
 	    		if ("decorate".equals(tagName)) {
@@ -521,20 +494,8 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 				if ("outputText".equals(tagName)) {
 					String value = attr(element, "value", String.class);
 					if (Is.notEmpty(value)) {
-						Document document = Dom.document(targetParent);
 						Boolean escape = attr(element, "escape", Boolean.class);
-						boolean suspendEscaping = escape!=null && escape.equals(Boolean.FALSE);
-						if (suspendEscaping) {
-							targetParent.appendChild(
-								document.createProcessingInstruction(StreamResult.PI_DISABLE_OUTPUT_ESCAPING, "")
-							);
-						}
-						targetParent.appendChild(document.createTextNode(value));
-						if (suspendEscaping) {
-							targetParent.appendChild(
-								document.createProcessingInstruction(StreamResult.PI_ENABLE_OUTPUT_ESCAPING, "")
-							);
-						}
+						appendText(value, escape==null || !escape.equals(Boolean.FALSE));
 					}
 					return;
 				}
@@ -544,6 +505,15 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 			void handleCustomTag(Element element)
 			{
 				String tagName = element.getLocalName();
+				String nsUri = Dom.nsUri(element);
+				Namespace namespace = namespaceByUri.get(nsUri);
+				if (namespace!=null) {
+					CustomTag customTag = namespace.getCustomTag(tagName);
+					if (customTag!=null) {
+						customTag.process(element, this, (CustomTag.Renderer)FaceletsCompilerImp.this);
+						return;
+					}
+				}
 				MutableContext newContext = new MutableContext(context);
 				for (Attr attr: Dom.attrs(element)) {
 					newContext.put(
@@ -552,7 +522,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 					);
 				}
 				try {
-					compile(tagName, Dom.nsUri(element)).process(
+					compile(tagName, nsUri).process(
 						targetParent,
 						newContext,
 						collectDefines(element)
@@ -565,7 +535,10 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 			
 			void handle(Node node)
 			{
-    			if (node instanceof Text) {
+				if (node instanceof Document) {
+					handle(node.getChildNodes());
+				}
+				else if (node instanceof Text) {
     				Text text = (Text) node;
     				String oldText = text.getData(); 
     				String newText = eval(oldText, String.class);
@@ -573,16 +546,16 @@ public class FaceletsCompilerImp implements FaceletsCompiler
     					if (targetParent instanceof Document) {
     						throw throwException("missing <html/> root tag");
     					}
-    					targetParent.appendChild(document().createTextNode(newText));
+    					appendText(newText, true);
     				}
     			}
     			else if (node instanceof Element) {
     				Element element = (Element)node;
     				String nsUri = Dom.nsUri(element);
-    				if (Is.empty(nsUri) || Namespaces.Xhtml.equals(nsUri)) {
+    				if (isHtmlNamespace(nsUri)) {
     					handleHtmlTag(element);
     				}
-    				else if (Namespaces.Core.equals(nsUri)) {
+    				else if (Namespaces.Core.equals(nsUri) || Namespaces.JspCore.equals(nsUri)) {
 		    			handleJspCoreTag(element);
 		    		}
     				else if (Namespaces.UI.equals(nsUri)) {
@@ -616,11 +589,21 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 					handle(node);
 	    		}
 			}
+			
+			public void handleChildren(Node node) 
+			{
+				handle(node.getChildNodes());
+			}
 
+			boolean isHtmlNamespace(String nsUri)
+			{
+				return Is.empty(nsUri) || Namespaces.Xhtml.equals(nsUri);
+			}
+			
 			void applyTemplate(Element element, String templateAttr)
 	    	{
 				try {
-					compile(templateAttr).process(
+					compile(normalizeResourceNamePath(templateAttr)).process(
 						targetParent,
 						collectParams(element), 
 						collectDefines(element));
@@ -629,6 +612,22 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 					throw throwException("cannot read template '"+templateAttr+"'", exc);
 				}
 	    	}
+			
+			public void appendText(String text, boolean escape) 
+			{
+				Document document = document();
+				if (!escape) {
+					targetParent.appendChild(
+						document.createProcessingInstruction(StreamResult.PI_DISABLE_OUTPUT_ESCAPING, "")
+					);
+				}
+				targetParent.appendChild(document.createTextNode(text));
+				if (!escape) {
+					targetParent.appendChild(
+						document.createProcessingInstruction(StreamResult.PI_ENABLE_OUTPUT_ESCAPING, "")
+					);
+				}
+			}
 	    	
 	    	Map<String, SourceFragment> collectDefines(Element parent)
 	    	{
@@ -651,7 +650,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 				for (Element param: Dom.childrenByTagName(parent, Namespaces.UI, "param")) {
 					result.put(
 						requiredAttr(param, "name", String.class),
-						requiredAttr(param, "value", Object.class)
+						attr(param, "value", Object.class)
 					);
 					parent.removeChild(param);
 				}
@@ -668,13 +667,13 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 		    	return eval(attr.getValue(), String.class); 
 		    }
 		    
-		    <T> T attr(Element element, String name, Class<T> clazz)
+		    public <T> T attr(Element element, String name, Class<T> clazz)
 		    {
 		    	String value = element.getAttribute(name);
 		    	return Is.empty(value) ? null : eval(value, clazz);
 		    }
 		    
-		    <T> T requiredAttr(Element element, String name, Class<T> clazz)
+		    public <T> T requiredAttr(Element element, String name, Class<T> clazz)
 		    {
 		    	T result = attr(element, name, clazz);
 		    	if (Is.empty(result)) {
@@ -699,19 +698,19 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 
 	class SourceFragment
 	{
-		private final NodeList nodes;
+		private final Node root;
 		private final MutableContext context;
 		private final Map<String, SourceFragment> defines;
 		
-		public SourceFragment(Node sourceParent, MutableContext context, Map<String, SourceFragment> defines) {
-			this.nodes = sourceParent.getChildNodes();
+		public SourceFragment(Node root, MutableContext context, Map<String, SourceFragment> defines) {
+			this.root = root;
 			this.context = context;
 			this.defines = defines;
 		}
 		
-		public NodeList getNodes()
+		public Node getRoot()
 		{
-			return nodes;
+			return root;
 		}
 		
 		public MutableContext getContext() 
@@ -726,7 +725,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler
 		
 		public String toString()
 		{
-			return nodes.getLength()==0 ? "[]" : nodes.item(0).getParentNode().toString();
+			return root.toString();
 		}
 	}
 	

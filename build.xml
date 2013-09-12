@@ -1,7 +1,7 @@
 <project name="facelets-lite">
 	<target name="build">
 		<property name="outdir" value=""/>
-	    <jar jarfile="${outdir}facelets-lite.jar" basedir="bin"/>
+	    <jar jarfile="${outdir}/facelets-lite.jar" basedir="bin"/>
 	</target>
 </project>
 

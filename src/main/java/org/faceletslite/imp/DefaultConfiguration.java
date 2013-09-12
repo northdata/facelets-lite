@@ -5,6 +5,7 @@ import java.io.StringReader;
 import java.lang.reflect.Constructor;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 import javax.el.*;
 import javax.xml.parsers.DocumentBuilder;
@@ -14,10 +15,7 @@ import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerFactory;
 
-import org.faceletslite.Configuration;
-import org.faceletslite.Namespace;
-import org.faceletslite.ResourceReader;
-import org.faceletslite.Facelet;
+import org.faceletslite.*;
 import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -25,16 +23,19 @@ import org.xml.sax.SAXException;
 
 public class DefaultConfiguration implements Configuration
 { 
+	private static final Logger log = Logger.getLogger(FaceletsCompiler.class.getName());
+	
 	static String DEFAULT_EXPRESSION_FACTORY_CLASS = "de.odysseus.el.ExpressionFactoryImpl";
 
 	private final List<Namespace> namespaces = new ArrayList<Namespace>();
 	private final Map<String,List<Class<?>>> classesByPrefix = new HashMap<String, List<Class<?>>>();
-
+	
 	public DocumentBuilderFactory getDocumentBuilderFactory() 
 	{
 		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 		factory.setNamespaceAware(true);
 		factory.setExpandEntityReferences(false);
+		log.info("using "+factory.getClass().getName());
 		return factory;
 	}
 
@@ -60,7 +61,9 @@ public class DefaultConfiguration implements Configuration
 
 	public TransformerFactory getTransformerFactory() 
 	{
-		return TransformerFactory.newInstance();
+		TransformerFactory result = TransformerFactory.newInstance();
+		log.info("using "+result.getClass().getName());
+		return result;
 	}
 
 	@Override
@@ -115,12 +118,22 @@ public class DefaultConfiguration implements Configuration
 		return namespaces;
 	}
 	
-	public void addCustomNamespace(final String uri, final ResourceReader resourceReader)
+	public void addCustomNamespace(String uri, ResourceReader resourceReader)
+	{
+		addCustomNamespace(uri, resourceReader, Collections.<String, CustomTag>emptyMap());
+	}
+	
+	public void addCustomNamespace(
+		final String uri,
+		final ResourceReader resourceReader,
+		final Map<String, CustomTag> customTags
+	)
 	{
 		namespaces.add(
 			new Namespace() {
 				@Override public String getUri() { return uri; }
 				@Override public ResourceReader getResourceReader() { return resourceReader; }
+				@Override public CustomTag getCustomTag(String tagName) { return customTags.get(tagName); }
 			}
 		);
 	}

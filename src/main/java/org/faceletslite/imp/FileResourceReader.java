@@ -32,7 +32,19 @@ public class FileResourceReader implements ResourceReader
 	{
 		return defaultExtension;
 	}
+
+	/*
+	private String removeDots(String filename) {
+		filename = removeDots(filename, '/');
+		filename = removeDots(filename, '\\');
+		return filename;
+	}
 	
+	private String removeDots(String filename, char pathSeparator)
+	{
+		
+	}
+	*/
 	@Override
 	public InputStream read(String uri) throws IOException {
 		String extension = getDefaultExtension();
