@@ -475,12 +475,12 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 					return nodes();
 				}
 	    		if ("param".equals(tagName)) {
-	    			throw error(element.getNodeName()
-	    				+" only allowed as child of :include, :composition or :decorate tag");
+	    			// ignore (already processed)
+	    			return nodes();
 				}
 	    		if ("define".equals(tagName)) {
-	    			throw error(element.getNodeName()
-	    				+" only allowed as child of :composition, :component, :decorate, :frament or custom tag");
+	    			// ignore (already processed)
+	    			return nodes();
 				}
 	    		throw error("invalid ui tag name '"+tagName+"'");
 	    	}
@@ -656,7 +656,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 				for (Element define: Dom.childrenByTagName(parent, Namespaces.UI, "define")) {
 					String name = requiredAttr(define, "name", String.class);
 					result.put(name, new SourceFragment(define, context, defines));
-					parent.removeChild(define);
+					//parent.removeChild(define);
 				}
 				result.put("", new SourceFragment(parent, context, defines));
 				return result; 
@@ -670,7 +670,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 						requiredAttr(param, "name", String.class),
 						attr(param, "value", Object.class)
 					);
-					parent.removeChild(param);
+					//parent.removeChild(param);
 				}
 				return result;
 	    	}
