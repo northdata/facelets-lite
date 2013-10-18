@@ -20,7 +20,6 @@ import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
-
 public class DefaultConfiguration implements Configuration
 { 
 	private static final Logger log = Logger.getLogger(FaceletsCompiler.class.getName());

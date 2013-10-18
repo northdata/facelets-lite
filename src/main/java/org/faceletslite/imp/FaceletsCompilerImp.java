@@ -45,7 +45,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	private final Map<String, Facelet> templateCache;
 	private final Pool<DocumentBuilder> documentBuilderPool;
 	private final Pool<Transformer> documentTransformerPool;
-    
+	
 	public FaceletsCompilerImp()
 	{
 		this(new DefaultConfiguration());
@@ -272,13 +272,13 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			throw error(message, null);
 		}
 		
-		public String render(Object context) 
+		public String render(Object scope) 
 		{
 			Document targetDocument = newDocument();
 			DocumentFragment targetFragment = targetDocument.createDocumentFragment();
 			Dom.appendChildren(
 				targetFragment,
-				process(targetDocument, new MutableContext().scope(context), null)
+				process(targetDocument, new MutableContext().scope(scope), null)
 			);
 			return "<!DOCTYPE html>"+"\r\n"+html(targetFragment);
 		}
@@ -353,7 +353,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 				if ("set".equals(tagName)) {
 					Object value = attr(element, "value", Object.class);
 			        String var = requiredAttr(element, "var", String.class);
-			        context = new MutableContext(context).put(var, value);
+			        context = context.put(var, value);
 			        return nodes();
 				}
 				if ("if".equals(tagName)) {
@@ -361,7 +361,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 					String var = attr(element, "var", String.class);
 					if (Is.conditionTrue(test)) {
 						return with(
-							new MutableContext(context).put(var, test),
+							context.put(var, test),
 							defines
 						).compileChildren(element);
 					}
@@ -387,7 +387,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			        while (status.hasNext()) {
 			        	result.addAll(
 				        	with(
-				        		new MutableContext(context)
+				        		context.nest() // ??
 				        			.put(var, status.getCurrent())
 				        			.put(varStatus, status),
 				        		defines
@@ -416,7 +416,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	    		String tagName = element.getLocalName();
 	    		if ("with".equals(tagName)) {
 	    			Object value = attr(element, "value", Object.class);
-	    			MutableContext newContext = value==null ? context : new MutableContext(context).scope(value); 
+	    			MutableContext newContext = value==null ? context : context.nest().scope(value); 
 					return with(newContext, defines).compileChildren(element);
 	    		}
 	    		if ("include".equals(tagName)) {
@@ -512,7 +512,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 						return customTag.process(element, this, (CustomTag.Renderer)FaceletsCompilerImp.this);
 					}
 				}
-				MutableContext newContext = new MutableContext(context);
+				MutableContext newContext = context.nest();
 				for (Attr attr: Dom.attrs(element)) {
 					newContext.put(
 						attr.getName(),
@@ -576,7 +576,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
     				if ("facelets".equals(instruction.getTarget())) {
     					String data = instruction.getData().trim();
     					if (data.equals("suspendEvaluation")) {
-    						context = new MutableContext(context).suspend(true);
+    						context = context.nest().suspend(true);
     					}
     				}
     			}
@@ -656,7 +656,6 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 				for (Element define: Dom.childrenByTagName(parent, Namespaces.UI, "define")) {
 					String name = requiredAttr(define, "name", String.class);
 					result.put(name, new SourceFragment(define, context, defines));
-					//parent.removeChild(define);
 				}
 				result.put("", new SourceFragment(parent, context, defines));
 				return result; 
@@ -664,13 +663,12 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	    	
 	    	MutableContext collectParams(Element parent)
 	    	{
-				MutableContext result = new MutableContext(context);
+				MutableContext result = context.nest();
 				for (Element param: Dom.childrenByTagName(parent, Namespaces.UI, "param")) {
 					result.put(
 						requiredAttr(param, "name", String.class),
 						attr(param, "value", Object.class)
 					);
-					//parent.removeChild(param);
 				}
 				return result;
 	    	}
@@ -783,6 +781,11 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		{
 			this.fallback = fallback;
 			this.suspended = (fallback instanceof MutableContext) ? ((MutableContext)fallback).suspended  : false;
+		}
+		
+		MutableContext nest()
+		{
+			return new MutableContext(this);
 		}
 		
 		MutableContext scope(Object scope)
