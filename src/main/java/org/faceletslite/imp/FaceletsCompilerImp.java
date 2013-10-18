@@ -407,6 +407,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 					for (Element otherwise: Dom.childrenByTagName(element, Namespaces.Core, "otherwise")) {
 						return compileChildren(otherwise);
 					}
+					return nodes();
 				}
 				throw error("invalid core tag name '"+tagName+"'");
 	    	}
