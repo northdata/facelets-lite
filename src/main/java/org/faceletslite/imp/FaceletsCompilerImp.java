@@ -27,12 +27,15 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 {
 	public interface Namespaces 
 	{
-		String UI = "http://java.sun.com/jsf/facelets";
+		String Ui = "http://java.sun.com/jsf/facelets";
 	    String Core = "http://java.sun.com/jstl/core";
 	    String JspCore = "http://java.sun.com/jsp/jstl/core";
 	    String JsfH = "http://java.sun.com/jsf/html";
 	    String Xhtml = "http://www.w3.org/1999/xhtml"; 
 	    String None = "";
+	    
+	    Set<String> CoreEquivalent = Const.setOf(Core, JspCore);
+	    Set<String> UiEquivalent = Const.setOf(Ui);
 	}
 	
 	private static final Logger log = Logger.getLogger(FaceletsCompiler.class.getName());
@@ -298,10 +301,10 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		
 		Node getRootNode(Document sourceDocument)
 		{
-    		for (Element composition: Dom.elementsByTagName(sourceDocument, Namespaces.UI, "composition")) {
+    		for (Element composition: Dom.elementsByTagName(sourceDocument, Namespaces.Ui, "composition")) {
     			return composition;
     		}
-    		for (Element component: Dom.elementsByTagName(sourceDocument, Namespaces.UI, "component")) {
+    		for (Element component: Dom.elementsByTagName(sourceDocument, Namespaces.Ui, "component")) {
     			return component;
     		}
 	    	return sourceDocument;
@@ -398,13 +401,13 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			        return result;
 	    		}
 				if ("choose".equals(tagName)) {
-					for (Element when: Dom.childrenByTagName(element, Namespaces.Core, "when")) {
+					for (Element when: Dom.childrenByTagName(element, Namespaces.CoreEquivalent, "when")) {
 						boolean test = requiredAttr(when, "test", Boolean.class);
 						if (test) {
 							return compileChildren(when);
 						}
 					}
-					for (Element otherwise: Dom.childrenByTagName(element, Namespaces.Core, "otherwise")) {
+					for (Element otherwise: Dom.childrenByTagName(element, Namespaces.CoreEquivalent, "otherwise")) {
 						return compileChildren(otherwise);
 					}
 					return nodes();
@@ -443,8 +446,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	    			if (fragment==null) {
 	    				return compileChildren(element);
 	    			}
-	    			else
-	    			{
+	    			else {
 	    				return with(context, fragment.getDefinitions())
 	    					.compileChildren(fragment.getRoot());	    				
 	    			}
@@ -558,7 +560,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
     				else if (Namespaces.Core.equals(nsUri) || Namespaces.JspCore.equals(nsUri)) {
 		    			return compileJspCoreTag(sourceElement);
 		    		}
-    				else if (Namespaces.UI.equals(nsUri)) {
+    				else if (Namespaces.Ui.equals(nsUri)) {
 		    			return compileUiTag(sourceElement);
 		    		}
     				else if (Namespaces.JsfH.equals(nsUri)) {
@@ -654,7 +656,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	    		if (defines!=null) {
 	    			result.putAll(defines);
 	    		}
-				for (Element define: Dom.childrenByTagName(parent, Namespaces.UI, "define")) {
+				for (Element define: Dom.childrenByTagName(parent, Namespaces.UiEquivalent, "define")) {
 					String name = requiredAttr(define, "name", String.class);
 					result.put(name, new SourceFragment(define, context, defines));
 				}
@@ -665,7 +667,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	    	MutableContext collectParams(Element parent)
 	    	{
 				MutableContext result = context.nest();
-				for (Element param: Dom.childrenByTagName(parent, Namespaces.UI, "param")) {
+				for (Element param: Dom.childrenByTagName(parent, Namespaces.UiEquivalent, "param")) {
 					result.put(
 						requiredAttr(param, "name", String.class),
 						attr(param, "value", Object.class)
@@ -896,7 +898,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			return Collections.emptyList();
 		}
 
-		static Iterable<Element> childrenByTagName(Node parent, String nsUri, String tagName)
+		static Iterable<Element> childrenByTagName(Node parent, Set<String> nsUris, String tagName)
 		{
 			List<Element> elements = new ArrayList<Element>();
 			NodeList nodeList = parent.getChildNodes();
@@ -904,7 +906,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 				Node node = nodeList.item(i);
 				if (node instanceof Element) {
 					Element element = (Element)node;
-					if (element.getLocalName().equals(tagName) && Safe.equals(nsUri(element), nsUri))
+					if (element.getLocalName().equals(tagName) && nsUris.contains(nsUri(element)))
 					{
 						elements.add((Element)node);
 					}
@@ -982,10 +984,22 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
     	protected abstract T create();
     }
 
+    static class Const
+    {
+    	public static <T> Set<T> setOf(T... objects) 
+    	{
+    		Set<T> result = new LinkedHashSet<T>(objects.length);
+    		for (T object: objects) {
+    			result.add(object);
+    		}
+    		return Collections.unmodifiableSet(result);
+    	}
+    }
+    
     static class Safe
     {
     	@SuppressWarnings("unchecked")
-    	static boolean equals(Object obj1, Object obj2)
+    	public static boolean equals(Object obj1, Object obj2)
     	{
     		if (obj1==obj2) {
     			return true;
@@ -1003,17 +1017,17 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
     		return obj1.equals(obj2);
     	}
     	
-    	static <T> T get(List<T> list, int index)
+    	public static <T> T get(List<T> list, int index)
     	{
     		return get(list, index, null);
     	}
     	
-    	static <T> T get(List<T> list, int index, T _default)
+    	public static <T> T get(List<T> list, int index, T _default)
     	{
     		return list!=null && 0<=index && index<list.size() ? list.get(index) : _default;
     	}
 
-    	static int toInt(Object object, int _default)
+    	public static int toInt(Object object, int _default)
     	{
     	    if (object!=null) {
     	        if (object instanceof Number) {
