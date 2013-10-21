@@ -11,6 +11,7 @@ import javax.el.*;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerFactory;
@@ -34,6 +35,7 @@ public class DefaultConfiguration implements Configuration
 		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 		factory.setNamespaceAware(true);
 		factory.setExpandEntityReferences(false);
+		factory.setIgnoringElementContentWhitespace(true);
 		log.info("using "+factory.getClass().getName());
 		return factory;
 	}
@@ -45,8 +47,7 @@ public class DefaultConfiguration implements Configuration
 			DocumentBuilder builder = getDocumentBuilderFactory().newDocumentBuilder();
 		 	builder.setEntityResolver(
 				new EntityResolver() {
-		            public InputSource resolveEntity(String publicId, String systemId) throws SAXException, IOException
-		            {
+		            public InputSource resolveEntity(String publicId, String systemId) throws SAXException, IOException {
 		            	return new InputSource(new StringReader(""));
 		            }
 				}	
@@ -69,7 +70,10 @@ public class DefaultConfiguration implements Configuration
 	public Transformer createDocumentTransformer() 
 	{
 		try {
-			return getTransformerFactory().newTransformer();
+			Transformer result = getTransformerFactory().newTransformer();
+	        result.setOutputProperty(OutputKeys.INDENT, "yes");
+	        result.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+	        return result;
 		} 
 		catch (TransformerConfigurationException exc) {
 			throw new RuntimeException("XML setup failure", exc);
