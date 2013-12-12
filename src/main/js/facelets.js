@@ -191,6 +191,20 @@ var Facelet = function(facelets, text) {
 	    			// nothing
 					return;
 				}
+	    		if ("with"== tagName) {
+	    			var value = context[requiredAttr(element, "value")];
+	    			var newContext = {};
+	    			for (var key in context) {
+	    				result[key] = context[key];
+	    			}
+	    			if (value) {
+		    			for (var attr in value) {
+		    		        if (value.hasOwnProperty(attr)) context[value] = obj[value];
+		    		    }
+		    		}
+	    			handle(element.childNodes, targetParent, newContext);
+	    			return;
+				}
 	    		if ("param"== tagName) {
 	    			throw new Error("only allowed as child of :include tag");
 				}

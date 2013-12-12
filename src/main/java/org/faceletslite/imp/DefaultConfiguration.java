@@ -61,7 +61,17 @@ public class DefaultConfiguration implements Configuration
 
 	public TransformerFactory getTransformerFactory() 
 	{
-		TransformerFactory result = TransformerFactory.newInstance();
+		TransformerFactory result = null;
+		try
+		{
+			result = (TransformerFactory)Class.forName("org.apache.xalan.processor.TransformerFactoryImpl").newInstance();
+		}
+		catch (Exception exc)
+		{
+		}
+		if (result==null) {
+			result = TransformerFactory.newInstance();
+		}
 		log.info("using "+result.getClass().getName());
 		return result;
 	}

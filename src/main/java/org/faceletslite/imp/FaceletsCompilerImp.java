@@ -1,8 +1,6 @@
 package org.faceletslite.imp;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.StringWriter;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.logging.Level;
@@ -19,10 +17,10 @@ import javax.xml.transform.stream.StreamResult;
 
 import org.faceletslite.*;
 import org.w3c.dom.*;
+import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 
- 
 public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 {
 	public interface Namespaces 
@@ -92,17 +90,17 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
     	}
 	}
     
-    @Override public TemplateImp compile(InputStream in) throws IOException
+    @Override public FaceletImp compile(InputStream in) throws IOException
     {
-		return new TemplateImp("", Namespaces.None, parse(in, "input"));
+		return new FaceletImp(read(in),  "", Namespaces.None);
     }
     
-    @Override public TemplateImp compile(String resourceName) throws IOException
+    @Override public FaceletImp compile(String resourceName) throws IOException
     {
     	return compile(resourceName, null);
     }
     
-    @Override public TemplateImp compile(String resourceName, String nsUri) throws IOException
+    @Override public FaceletImp compile(String resourceName, String nsUri) throws IOException
     {
     	String key = resourceName;
     	if (nsUri==null) {
@@ -111,9 +109,9 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
     	if (!Namespaces.None.equals(nsUri)) {
     		key = nsUri+"/"+key;
     	}
-	    TemplateImp result = templateCache==null ? null : (TemplateImp)templateCache.get(key);
+	    FaceletImp result = templateCache==null ? null : (FaceletImp)templateCache.get(key);
 	    if (result==null) {
-	    	result = new TemplateImp(resourceName, nsUri, parse(resourceName, nsUri));
+	    	result = new FaceletImp(read(resourceName, nsUri), resourceName, nsUri);
 	    	if (templateCache!=null) {
 	    		templateCache.put(key, result);
 	    	}
@@ -121,48 +119,45 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	    return result;
     }
     
-    private Document parse(String resourceName, String nsUri) throws IOException
+    private String read(String resourceName, String nsUri) throws IOException
+    {
+    	ResourceReader resourceReader = resourceReaderByNsUri.get(nsUri);
+    	if (resourceReader==null) {
+    		throw new IOException("no resource reader to read "+getResourceInfo(resourceName, nsUri));
+    	}
+    	return read(resourceReader.read(resourceName));
+    }
+    
+    private String getResourceInfo(String resourceName, String nsUri) 
     {
     	String resourceInfo ="resource '"+resourceName+"'";
     	if (!Namespaces.None.equals(nsUri)) {
 			resourceInfo += ", namespace "+nsUri;
 		}
-    	ResourceReader resourceReader = resourceReaderByNsUri.get(nsUri);
-    	if (resourceReader==null) {
-    		throw new IOException("no resource reader to read "+resourceInfo);
-    	}
-    	InputStream in = resourceReader.read(resourceName);
-		return parse(in, resourceInfo);
+    	return resourceInfo;
     }
     
-    private Document parse(InputStream in, String resourceInfo) throws IOException
-    { 
-    	DocumentBuilder builder = documentBuilderPool.get();
+    public String read(InputStream in) throws IOException 
+    {
     	try {
-    		Document document = builder.parse(in);
-    		document.normalizeDocument();
-    		return document;
-    	}
-    	catch (SAXException exc)
-    	{
-    		if (exc instanceof SAXParseException) {
-    			SAXParseException parseExc = (SAXParseException)exc;
-    			int line = parseExc.getLineNumber();
-    			int col = parseExc.getColumnNumber();
-    			if (line>=0) {
-    				resourceInfo += ", line "+line;
-    				if (col>0) {
-    					resourceInfo += ", column "+col;
-    				}
-    			}
-    		}
-    		throw new RuntimeException("cannot parse "+resourceInfo+":\r\n\t"+exc.getMessage(), exc); 
+			InputStreamReader reader = new InputStreamReader(in, "utf-8");
+			StringBuilder builder = new StringBuilder();
+	    	char[] buffer = new char[2048];
+			int read;
+			while ((read = reader.read(buffer)) > 0) {
+				// skip signature, if any
+				if (buffer[0] == '\uFEFF') {
+					builder.append(buffer, 1, read - 1);
+				} else {
+					builder.append(buffer, 0, read);
+				}
+			}
+			return builder.toString();
     	}
     	finally {
     		in.close();
-    		documentBuilderPool.release(builder);
     	}
-    }
+   	}
     
 	public String html(Node node)
 	{
@@ -199,16 +194,19 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
     	}
     }
     
-	class TemplateImp implements Facelet
+	class FaceletImp implements Facelet
 	{
 		private final Pool<Document> sourceDocumentWorkingCopies;
 		private final String resourceName;
 		private final String namespace;
+		private final String sourceText;
 		
-		TemplateImp(String resourceName, String namespace, final Document sourceDocument) 
+		FaceletImp(String sourceText, String resourceName, String namespace) throws IOException
 		{
+			this.sourceText = sourceText;
 			this.resourceName = resourceName;
 			this.namespace = namespace;
+			final Document sourceDocument = parse();
 			// even read access to a document is not thread-safe, so we pool!
 			this.sourceDocumentWorkingCopies = new Pool<Document>() {
 				protected Document create() {
@@ -231,6 +229,37 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			};
 		}
 		
+	    private Document parse() throws IOException
+	    { 
+	    	DocumentBuilder builder = documentBuilderPool.get();
+	    	StringReader reader = new StringReader(sourceText);
+	    	try {
+	    		Document document = builder.parse(new InputSource(reader));
+	    		document.normalizeDocument();
+	    		return document;
+	    	}
+	    	catch (SAXException exc)
+	    	{
+	        	String resourceInfo = getResourceInfo(resourceName, namespace);
+	    		if (exc instanceof SAXParseException) {
+	    			SAXParseException parseExc = (SAXParseException)exc;
+	    			int line = parseExc.getLineNumber();
+	    			int col = parseExc.getColumnNumber();
+	    			if (line>=0) {
+	    				resourceInfo += ", line "+line;
+	    				if (col>0) {
+	    					resourceInfo += ", column "+col;
+	    				}
+	    			}
+	    		}
+	    		throw new RuntimeException("cannot parse "+resourceInfo+":\r\n\t"+exc.getMessage(), exc); 
+	    	}
+	    	finally {
+	    		reader.close();
+	    		documentBuilderPool.release(builder);
+	    	}
+	    }
+		
 		public String getResourceName() 
 		{
 			return resourceName;
@@ -239,6 +268,11 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		public String getNamespace() 
 		{
 			return namespace;
+		}
+		
+		public String toString() 
+		{
+			return sourceText;
 		}
 
 		String getResourcePath()
@@ -288,11 +322,16 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		
 		List<Node> process(Document targetDocument, MutableContext context, Map<String, SourceFragment> defines) 
 		{
+			return process(new Processor(targetDocument, context, defines));
+		}
+		
+		List<Node> process(Processor processor)
+		{
 			Document workingCopy = sourceDocumentWorkingCopies.get();
 			try
 			{
 				Node sourceRoot = getRootNode(workingCopy);
-				return new Processor(targetDocument, context, defines).compile(sourceRoot);
+				return processor.compile(sourceRoot);
 			}
 			finally {
 				sourceDocumentWorkingCopies.release(workingCopy);
@@ -315,6 +354,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			private final Document targetDocument;
 			private final Map<String, SourceFragment> defines;
 			private MutableContext context;
+			private boolean swallowComments = true;
 			
 			public Processor(Document targetDocument, MutableContext context, Map<String, SourceFragment> defines) 
 			{
@@ -431,7 +471,8 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	    			}
 	    			else {
 		    			try {
-		    				TemplateImp template = FaceletsCompilerImp.this.compile(normalizeResourceNamePath(src), Namespaces.None);
+		    				FaceletImp template = FaceletsCompilerImp.this.compile(normalizeResourceNamePath(src), getNamespace());
+		    				with(newContext, defines).compileChildren(template.getRootNode(targetDocument));
 		    				return template.process(targetDocument, newContext, defines);
 		    			}
 		    			catch (IOException exc) {
@@ -523,12 +564,11 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 					);
 				}
 				try {
-					TemplateImp template = FaceletsCompilerImp.this.compile(tagName, nsUri);
-					return template.process(
-						getTargetDocument(),
+					FaceletImp template = FaceletsCompilerImp.this.compile(tagName, nsUri);
+					return template.process(with(
 						newContext,
 						collectDefines(element)
-					);
+					));
 				} 
 				catch (IOException exc) {
 					throw error("cannot load "+element.getPrefix()+":"+tagName, exc);
@@ -571,7 +611,13 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		    		}
     			}
     			else if (sourceNode instanceof Comment) {
-    				// TODO optional?
+    				if (!swallowComments) {
+    					Comment comment = (Comment)sourceNode;
+    					String commentText = comment.getData();
+    					return nodes(
+							getTargetDocument().createComment(commentText)	
+    					);
+    				}
     			}
     			else if (sourceNode instanceof ProcessingInstruction)
     			{
@@ -580,6 +626,12 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
     					String data = instruction.getData().trim();
     					if (data.equals("suspendEvaluation")) {
     						context = context.nest().suspend(true);
+    					}
+    					if (data.equals("swallowComments='true'") || data.equals("swallowComments=\"true\"") || data.equals("swallowComments=true")) {
+    						swallowComments = true;
+    					}
+    					if (data.equals("swallowComments='false'") || data.equals("swallowComments=\"false\"") || data.equals("swallowComments=false")) {
+    						swallowComments = false;
     					}
     				}
     			}
@@ -605,7 +657,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			public List<Node> applyTemplate(Element sourceElement, String templateAttr)
 	    	{
 				try {
-					TemplateImp template = FaceletsCompilerImp.this.compile(normalizeResourceNamePath(templateAttr));
+					FaceletImp template = FaceletsCompilerImp.this.compile(normalizeResourceNamePath(templateAttr));
 					return template.process(
 						getTargetDocument(),
 						collectParams(sourceElement), 
@@ -753,7 +805,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		private final ELContext fallback;
 		private Object scope;
 		private boolean suspended;
-    	private final Map<String, ValueExpression> variables = new HashMap<String, ValueExpression>();
+    	private final Map<String, ValueExpression> variables = new LinkedHashMap<String, ValueExpression>();
 		private final VariableMapper variableMapper = new VariableMapper() 
 		{
 			@Override public ValueExpression setVariable(String name, ValueExpression expr) 
