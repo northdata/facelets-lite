@@ -14,3 +14,10 @@ Ready for cloud environments
 Facelets lite is a self-contained jar with zero start-up time. It is configured by code only, and requires no external config files. There is no classpath magic. It does not use threads, file I/O or other restricted APIs.
 
 Facelets lite has been designed for heavy parallel usage and high throughput.
+
+In production
+-------------
+
+Facelets lite is used by:
+* [distance24](http://www.distance24.org)
+* [Biz-q](http://www.biz-q.com)
