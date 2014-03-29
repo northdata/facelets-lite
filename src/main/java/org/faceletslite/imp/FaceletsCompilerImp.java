@@ -35,6 +35,14 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	    Set<String> CoreEquivalent = Const.setOf(Core, JspCore);
 	    Set<String> UiEquivalent = Const.setOf(Ui);
 	}
+
+	public interface Environment {
+		String VarPrefix 	= "__facelet__";
+		String ResourceName = VarPrefix + "resourceName";
+		String ResourcePath = VarPrefix + "resourcePath";
+		String Namespace 	= VarPrefix + "namespace";
+		String SourceText 	= VarPrefix + "sourceText";
+	}
 	
 	private static final Logger log = Logger.getLogger(FaceletsCompiler.class.getName());
 	
@@ -200,6 +208,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		private final String resourceName;
 		private final String namespace;
 		private final String sourceText;
+		private final Map<String, String> environmentVars;
 		
 		FaceletImp(String sourceText, String resourceName, String namespace) throws IOException
 		{
@@ -227,6 +236,15 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 					}
 				};
 			};
+			this.environmentVars = new HashMap<String, String>();
+			environmentVars.put(Environment.Namespace, namespace);
+			environmentVars.put(Environment.ResourceName, resourceName);
+			environmentVars.put(Environment.ResourcePath, getResourcePath());
+			environmentVars.put(Environment.SourceText, sourceText);
+		}
+		
+		public Map<String, String> getEnvironmentVars() {
+			return environmentVars;
 		}
 		
 	    private Document parse() throws IOException
@@ -465,13 +483,14 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	    		}
 	    		if ("include".equals(tagName)) {
 	    			String src = attr(element, "src", String.class);
+	    			String namespace = attr(element, "namespace", String.class);
 	    			MutableContext newContext = collectParams(element);
 	    			if (Is.empty(src)) {
 	    				return with(newContext, defines).compileChildren(element);
 	    			}
 	    			else {
 		    			try {
-		    				FaceletImp template = FaceletsCompilerImp.this.compile(normalizeResourceNamePath(src), getNamespace());
+		    				FaceletImp template = FaceletsCompilerImp.this.compile(normalizeResourceNamePath(src), namespace==null ? getNamespace() : namespace);
 		    				with(newContext, defines).compileChildren(template.getRootNode(targetDocument));
 		    				return template.process(targetDocument, newContext, defines);
 		    			}
@@ -757,7 +776,11 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			<T> T eval(String text, Class<T> clazz) 
 		    {
 		    	try {
-			    	return context.eval(text, clazz);
+			    	return context.eval(
+			    		text,
+			    		clazz,
+			    		getEnvironmentVars()
+			    	);
 		    	} 
 		    	catch (RuntimeException exc) {
 		    		String message = text+" expression evaluation failed:\r\n\t"+exc.getMessage();
@@ -804,6 +827,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	{
 		private final ELContext fallback;
 		private Object scope;
+		private Object environmentVars;
 		private boolean suspended;
     	private final Map<String, ValueExpression> variables = new LinkedHashMap<String, ValueExpression>();
 		private final VariableMapper variableMapper = new VariableMapper() 
@@ -819,7 +843,11 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 				if (value!=null) {
 					return wrap(value);
 				}
-				ValueExpression expr = variables.get(name);
+				value = environmentVars==null ? null : resolver.getValue(MutableContext.this, environmentVars, name);
+				if (value!=null) {
+					return wrap(value);
+				}
+				ValueExpression expr = variables.get(name); 
 				if (expr!=null) {
 					return expr;
 				}
@@ -858,7 +886,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		MutableContext put(String name, Object value) 
 		{
 			if (name!=null) {
-				variables.put(name, wrap(value));
+				variableMapper.setVariable(name, wrap(value));
 			}
 			return this;
 		}
@@ -884,12 +912,13 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		}
 		
 		@SuppressWarnings("unchecked")
-		<T> T eval(String text, Class<?> clazz) {
+		<T> T eval(String text, Class<?> clazz, Object environmentVars) {
 			if (suspended) {
 				if (clazz==String.class || clazz==Object.class) {
 					return (T)text;
 				}
 			}
+			this.environmentVars = environmentVars;
 			return (T)expressionFactory
 	    			.createValueExpression(this, text, clazz)
 	    			.getValue(this)
