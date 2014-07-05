@@ -47,7 +47,8 @@ public class DefaultConfiguration implements Configuration
 			DocumentBuilder builder = getDocumentBuilderFactory().newDocumentBuilder();
 		 	builder.setEntityResolver(
 				new EntityResolver() {
-		            public InputSource resolveEntity(String publicId, String systemId) throws SAXException, IOException {
+		            @Override
+					public InputSource resolveEntity(String publicId, String systemId) throws SAXException, IOException {
 		            	return new InputSource(new StringReader(""));
 		            }
 				}	
@@ -90,6 +91,7 @@ public class DefaultConfiguration implements Configuration
 		}
 	}
 	
+	@Override
 	public ExpressionFactory getExpressionFactory() 
 	{
 		try
@@ -121,6 +123,7 @@ public class DefaultConfiguration implements Configuration
 		return result;
 	}
 	
+	@Override
 	public ResourceReader getResourceReader() 
 	{
 		return new FileResourceReader("", ".html");

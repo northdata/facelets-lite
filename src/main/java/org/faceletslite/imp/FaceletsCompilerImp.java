@@ -1,12 +1,30 @@
 package org.faceletslite.imp;
 
-import java.io.*;
-import java.util.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.el.*;
+import javax.el.ELContext;
+import javax.el.ELResolver;
+import javax.el.ExpressionFactory;
+import javax.el.FunctionMapper;
+import javax.el.ValueExpression;
+import javax.el.VariableMapper;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
@@ -15,8 +33,22 @@ import javax.xml.transform.dom.DOMResult;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
-import org.faceletslite.*;
-import org.w3c.dom.*;
+import org.faceletslite.Configuration;
+import org.faceletslite.CustomTag;
+import org.faceletslite.Facelet;
+import org.faceletslite.FaceletsCompiler;
+import org.faceletslite.Namespace;
+import org.faceletslite.ResourceReader;
+import org.w3c.dom.Attr;
+import org.w3c.dom.Comment;
+import org.w3c.dom.Document;
+import org.w3c.dom.DocumentFragment;
+import org.w3c.dom.Element;
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.w3c.dom.ProcessingInstruction;
+import org.w3c.dom.Text;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
@@ -167,6 +199,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
     	}
    	}
     
+	@Override
 	public String html(Node node)
 	{
 		StringWriter writer = new StringWriter();
@@ -218,6 +251,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			final Document sourceDocument = parse();
 			// even read access to a document is not thread-safe, so we pool!
 			this.sourceDocumentWorkingCopies = new Pool<Document>() {
+				@Override
 				protected Document create() {
 					Transformer transformer = documentTransformerPool.get();
 					try {
@@ -288,6 +322,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			return namespace;
 		}
 		
+		@Override
 		public String toString() 
 		{
 			return sourceText;
@@ -327,6 +362,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			throw error(message, null);
 		}
 		
+		@Override
 		public String render(Object scope) 
 		{
 			Document targetDocument = newDocument();
@@ -381,6 +417,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 				this.defines = defines;
 			}
 			
+			@Override
 			public Document getTargetDocument() 
 			{
 				return targetDocument;
@@ -668,6 +705,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 				return result;
 			}
 			
+			@Override
 			public List<Node> compileChildren(Node sourceNode) 
 			{
 				return compile(sourceNode.getChildNodes());
@@ -688,6 +726,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 				}
 			}
 			
+			@Override
 			public List<Node> text(String text, boolean escape) 
 			{
 				List<Node> result = new ArrayList<Node>();
@@ -757,13 +796,15 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		    	return eval(attr.getValue(), String.class); 
 		    }
 		    
-		    public <T> T attr(Element element, String name, Class<T> clazz)
+		    @Override
+			public <T> T attr(Element element, String name, Class<T> clazz)
 		    {
 		    	String value = element.getAttribute(name);
 		    	return Is.empty(value) ? null : eval(value, clazz);
 		    }
 		    
-		    public <T> T requiredAttr(Element element, String name, Class<T> clazz)
+		    @Override
+			public <T> T requiredAttr(Element element, String name, Class<T> clazz)
 		    {
 		    	T result = attr(element, name, clazz);
 		    	if (Is.empty(result)) {
@@ -817,6 +858,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			return defines;
 		}
 		
+		@Override
 		public String toString()
 		{
 			return root.toString();

@@ -21,3 +21,6 @@ In production
 Facelets lite is used by:
 * [distance24](http://www.distance24.org)
 * [Biz-q](http://www.biz-q.com)
+* [Rifamo](https://www.rifamo.com)
+
+ 
