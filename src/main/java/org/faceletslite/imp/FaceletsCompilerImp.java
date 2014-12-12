@@ -7,7 +7,6 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -467,9 +466,12 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 				}
 				if ("forEach".equalsIgnoreCase(tagName)) {
 					List<Node> result = new ArrayList<Node>();
-			        Collection<?> items = attr(element, "items", Collection.class);
-			        if (items==null) {
-			        	items = Collections.emptyList();
+			        Iterable<?> _items = attr(element, "items", Iterable.class);
+			        List<Object> items = new ArrayList<Object>(); 
+			        if (_items!=null) {
+			        	for (Object item: _items) {
+			        		items.add(item);
+			        	}
 			        }
 			        String var = attr(element, "var", String.class);
 			        String varStatus = attr(element, "varStatus", String.class);
@@ -480,7 +482,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			        	Safe.toInt(begin, 0),
 			        	Safe.toInt(end, items.size()-1),
 			        	Safe.toInt(step, 1),
-			        	new ArrayList<Object>(items)
+			        	items
 			        );
 			        while (status.hasNext()) {
 			        	result.addAll(
