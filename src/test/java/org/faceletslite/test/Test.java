@@ -1,5 +1,10 @@
 package org.faceletslite.test;
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 
 import javax.el.CompositeELResolver;
 import javax.el.ELResolver;
@@ -63,6 +68,15 @@ public class Test
 	public void testForEach() 
 	{
 		checkAgainstExpectedOutput("foreach1");
+	}
+	
+	@org.junit.Test
+	public void testDocType() throws IOException
+	{
+		String docType = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">";
+		String input = docType+"<html></html>";
+		String output = compiler.compile(new ByteArrayInputStream(input.getBytes())).render(null); 
+		System.out.println(output);
 	}
 	
 	void checkAgainstExpectedOutput(String name) 

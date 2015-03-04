@@ -3,11 +3,23 @@ package org.faceletslite.imp;
 import java.io.IOException;
 import java.io.StringReader;
 import java.lang.reflect.Constructor;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
-import javax.el.*;
+import javax.el.ArrayELResolver;
+import javax.el.BeanELResolver;
+import javax.el.CompositeELResolver;
+import javax.el.ELResolver;
+import javax.el.ExpressionFactory;
+import javax.el.FunctionMapper;
+import javax.el.ListELResolver;
+import javax.el.MapELResolver;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -16,7 +28,12 @@ import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerFactory;
 
-import org.faceletslite.*;
+import org.faceletslite.Configuration;
+import org.faceletslite.CustomTag;
+import org.faceletslite.Facelet;
+import org.faceletslite.FaceletsCompiler;
+import org.faceletslite.Namespace;
+import org.faceletslite.ResourceReader;
 import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -32,12 +49,31 @@ public class DefaultConfiguration implements Configuration
 	
 	public DocumentBuilderFactory getDocumentBuilderFactory() 
 	{
-		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-		factory.setNamespaceAware(true);
-		factory.setExpandEntityReferences(false);
-		factory.setIgnoringElementContentWhitespace(true);
-		log.info("using "+factory.getClass().getName());
-		return factory;
+		try {
+			DocumentBuilderFactory factory = null;
+			try {
+				factory = (DocumentBuilderFactory)Class.forName("org.apache.xerces.jaxp.DocumentBuilderFactoryImpl").newInstance(); 
+			}
+			catch (Exception exc)
+			{
+			}
+			if (factory==null) {
+				factory = DocumentBuilderFactory.newInstance();
+			}
+			factory.setNamespaceAware(true);
+			factory.setExpandEntityReferences(false);
+			factory.setValidating(false);
+			factory.setIgnoringElementContentWhitespace(true);
+			factory.setXIncludeAware(false);
+			//factory.setFeature("http://apache.org/xml/features/validation/unparsed-entity-checking", false);
+			factory.setFeature("http://apache.org/xml/features/nonvalidating/load-dtd-grammar", false);
+			factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+			log.info("using "+factory.getClass().getName());
+			return factory;
+		}
+		catch (ParserConfigurationException exc) {
+			throw new RuntimeException("XML setup failure", exc);
+		}
 	}
 
 	@Override

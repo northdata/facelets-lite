@@ -41,7 +41,7 @@ import org.faceletslite.ResourceReader;
 import org.w3c.dom.Attr;
 import org.w3c.dom.Comment;
 import org.w3c.dom.Document;
-import org.w3c.dom.DocumentFragment;
+import org.w3c.dom.DocumentType;
 import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
@@ -202,6 +202,12 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	public String html(Node node)
 	{
 		StringWriter writer = new StringWriter();
+		if (node instanceof Document) {
+			String docType = Dom.getDocType(((Document)node));
+			if (Is.notEmpty(docType)) {
+				writer.write(docType + "\r\n");
+			}
+		}
 		Transformer documentWriter = documentTransformerPool.get();
 		documentWriter.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
 		documentWriter.setOutputProperty(OutputKeys.INDENT, "no");
@@ -241,6 +247,10 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		private final String namespace;
 		private final String sourceText;
 		private final Map<String, String> environmentVars;
+		//private final String sourceDocType;
+		private final String sourceDocTypeName;
+		private final String sourceDocTypePublicId;
+		private final String sourceDocTypeSystemId;
 		
 		FaceletImp(String sourceText, String resourceName, String namespace) throws IOException
 		{
@@ -248,6 +258,12 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			this.resourceName = resourceName;
 			this.namespace = namespace;
 			final Document sourceDocument = parse();
+			//this.sourceDocType = Dom.getDocType(sourceDocument);
+			DocumentType sourceDocType = sourceDocument.getDoctype();
+			sourceDocTypeName = sourceDocType==null ? null : sourceDocType.getName();
+			sourceDocTypePublicId = sourceDocType==null ? null : sourceDocType.getPublicId();
+			sourceDocTypeSystemId = sourceDocType==null ? null : sourceDocType.getSystemId();
+			
 			// even read access to a document is not thread-safe, so we pool!
 			this.sourceDocumentWorkingCopies = new Pool<Document>() {
 				@Override
@@ -286,7 +302,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	    	StringReader reader = new StringReader(sourceText);
 	    	try {
 	    		Document document = builder.parse(new InputSource(reader));
-	    		document.normalizeDocument();
+	    		//  		document.normalizeDocument();
 	    		return document;
 	    	}
 	    	catch (SAXException exc)
@@ -365,12 +381,19 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		public String render(Object scope) 
 		{
 			Document targetDocument = newDocument();
-			DocumentFragment targetFragment = targetDocument.createDocumentFragment();
-			Dom.appendChildren(
-				targetFragment,
-				process(targetDocument, new MutableContext().scope(scope), null)
-			);
-			return "<!DOCTYPE html>"+"\r\n"+html(targetFragment);
+			List<Node> processedNodes = process(targetDocument, new MutableContext().scope(scope), null);
+			Node target = hasDocType(processedNodes) ? targetDocument : targetDocument.createDocumentFragment();
+			Dom.appendChildren(target, processedNodes);
+			return html(target); 
+		}
+		
+		boolean hasDocType(List<Node> nodes) {
+			if (nodes.size()>0) {
+				if (nodes.get(0) instanceof DocumentType) {
+					return true;
+				}
+			}
+			return false;
 		}
 		
 		List<Node> process(Document targetDocument, MutableContext context, Map<String, SourceFragment> defines) 
@@ -384,7 +407,21 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			try
 			{
 				Node sourceRoot = getRootNode(workingCopy);
-				return processor.compile(sourceRoot);
+				List<Node> result = new ArrayList<Node>();
+				if (Is.notEmpty(sourceDocTypeName)) {
+					result.add(
+						processor
+							.getTargetDocument()
+							.getImplementation()
+							.createDocumentType(
+								sourceDocTypeName, 
+								sourceDocTypePublicId,
+								sourceDocTypeSystemId
+							)
+					);
+				}
+				result.addAll(processor.compile(sourceRoot));
+				return result;
 			}
 			finally {
 				sourceDocumentWorkingCopies.release(workingCopy);
@@ -408,6 +445,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			private final Map<String, SourceFragment> defines;
 			private MutableContext context;
 			private boolean swallowComments = true;
+			private String targetDocType;
 			
 			public Processor(Document targetDocument, MutableContext context, Map<String, SourceFragment> defines) 
 			{
@@ -1086,6 +1124,34 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
     		//return node.getNamespaceURI(); <-- buggy in old XML implementations, such as the JDK's default one
 			return node.lookupNamespaceURI(node.getPrefix());
     	}
+		
+		static String getDocType(Document document) 
+		{
+			DocumentType docType = document.getDoctype();
+			if (docType==null) { 
+				return null;
+			}
+			String docTypeName = docType.getName();
+			String publicId = docType.getPublicId();
+			String systemId = docType.getSystemId();
+			if (Is.empty(docTypeName)) {
+				return null;
+			}
+			StringBuffer result = new StringBuffer("<!DOCTYPE ");
+			result.append(docTypeName);
+			if (Is.notEmpty(publicId)) {
+				result.append(" PUBLIC \"");
+				result.append(publicId);
+				result.append('"');
+			}
+			if (Is.notEmpty(systemId)) {
+				result.append(" \"");
+				result.append(systemId);
+				result.append('"');
+			}
+			result.append(">");
+			return result.toString();
+		}
     }
     
     static abstract class Pool<T> 
