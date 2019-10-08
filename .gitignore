@@ -213,3 +213,10 @@ pip-log.txt
 
 #Mr Developer
 .mr.developer.cfg
+
+# Maven
+
+target/
+.mvn/wrapper/*.jar
+.mvn/wrapper/*.class
+
