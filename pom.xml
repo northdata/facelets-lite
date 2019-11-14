@@ -115,7 +115,7 @@
 
     <scm>
         <connection>scm:git:git://github.com/northdata/facelets-lite.git</connection>
-        <developerConnection>scm:git:ssh://github.com:northdata/facelets-lite.git</developerConnection>
+        <developerConnection>scm:git:ssh://github.com/northdata/facelets-lite.git</developerConnection>
         <url>http://github.com/northdata/facelets-lite/tree/master</url>
       <tag>facelets-lite-1.0.0</tag>
   </scm>
