@@ -1,8 +1,9 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" 
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.northdata</groupId>
     <artifactId>facelets-lite</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>Facelets Lite</name>
@@ -114,11 +115,10 @@
 
 
     <scm>
-        <connection>scm:git:git@github.com:northdata/facelets-lite.git</connection>
-        <developerConnection>scm:git:git@github.com:northdata/facelets-lite.git</developerConnection>
+        <connection>scm:git:git://github.com/northdata/facelets-lite.git</connection>
+        <developerConnection>scm:git:ssh://github.com:northdata/facelets-lite.git</developerConnection>
         <url>http://github.com/northdata/facelets-lite/tree/master</url>
-      <tag>facelets-lite-1.0.0</tag>
-  </scm>
+    </scm>
 
     <distributionManagement>
         <snapshotRepository>
