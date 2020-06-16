@@ -89,6 +89,21 @@ public class FaceletTest
 		checkAgainstExpectedOutput("function", context);
 	}
 
+	@Test
+	public void testWhenWithBoolean() {
+		Map<String, Object> context = new HashMap<String, Object>();
+		context.put("foo", true);
+		checkAgainstExpectedOutput("when1", context);
+	}
+
+	@Test
+	public void testWhenWithUndefinedBoolean() {
+		Map<String, Object> context = new HashMap<String, Object>();
+		checkAgainstExpectedOutput("when2", context);
+	}
+
+
+
 	void checkAgainstExpectedOutput(String name) {
 		checkAgainstExpectedOutput(name, null);
 	}
