@@ -474,6 +474,8 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	    			if (isHtmlNamespace(Dom.nsUri(attr)) && !name.startsWith("xmlns")) {
 						String newValue = eval(attr);
 						if (Is.notEmpty(newValue)) {
+							// XSS protection. No, the document transformer HTML generator
+							// won' t do this for :-( How do we do it???
 							targetElement.setAttribute(name, newValue);
 						}
 	    			}

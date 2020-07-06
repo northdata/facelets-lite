@@ -25,6 +25,7 @@ import org.jsoup.safety.Cleaner;
 import org.jsoup.safety.Whitelist;
 import org.jsoup.select.NodeVisitor;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 
@@ -58,6 +59,23 @@ public class FaceletTest
 	public void testSet()
 	{
 		checkAgainstExpectedOutput("set1");
+	}
+
+	@Test @Ignore
+	public void testXss()
+	{
+		try
+		{
+			String output = compile("xss.html", null);
+			Assert.assertFalse(
+				"test tag values to be escaped",
+				output.contains("<xss")
+			);
+		}
+		catch (IOException exc)
+		{
+			Assert.fail(exc.getMessage());
+		}
 	}
 
 	@Test
@@ -127,7 +145,6 @@ public class FaceletTest
 			}
 			String output = compile(inputFileName, ctx);
 
-
 			Document outputDocument = Jsoup.parse(output);
 			Document expectedOutputDocument = Jsoup.parse(expectedOutputFile, "utf-8");
 
@@ -183,7 +200,7 @@ public class FaceletTest
 		}
 		catch (Exception exc)
 		{
-			throw new RuntimeException("canmot parse json", exc);
+			throw new RuntimeException("cannot parse json", exc);
 		}
 	}
 
