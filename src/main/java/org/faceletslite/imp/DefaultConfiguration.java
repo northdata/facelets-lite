@@ -18,6 +18,7 @@ import javax.el.ExpressionFactory;
 import javax.el.FunctionMapper;
 import javax.el.ListELResolver;
 import javax.el.MapELResolver;
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -96,16 +97,13 @@ public class DefaultConfiguration implements Configuration
 
 	public TransformerFactory getTransformerFactory()
 	{
-		TransformerFactory result = null;
-		try
-		{
-			result = (TransformerFactory)Class.forName("org.apache.xalan.processor.TransformerFactoryImpl").newInstance();
-		}
-		catch (Exception exc)
-		{
-		}
-		if (result==null) {
-			result = TransformerFactory.newInstance();
+		TransformerFactory result = TransformerFactory.newInstance();
+		result.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+		result.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
+		try {
+			result.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+		} catch (TransformerConfigurationException exc) {
+			throw new RuntimeException("XML setup failure", exc);
 		}
 		log.info("using "+result.getClass().getName());
 		return result;
