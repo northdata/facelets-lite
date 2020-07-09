@@ -25,7 +25,6 @@ import org.jsoup.safety.Cleaner;
 import org.jsoup.safety.Whitelist;
 import org.jsoup.select.NodeVisitor;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 
@@ -61,7 +60,7 @@ public class FaceletTest
 		checkAgainstExpectedOutput("set1");
 	}
 
-	@Test @Ignore
+	@Test
 	public void testXss()
 	{
 		try
@@ -97,7 +96,7 @@ public class FaceletTest
 		String docType = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">";
 		String input = docType+"<html></html>";
 		String output = compiler.compile(new ByteArrayInputStream(input.getBytes())).render(null);
-		System.out.println(output);
+		Assert.assertTrue(output.contains(docType));
 	}
 
 	@Test
@@ -150,9 +149,6 @@ public class FaceletTest
 
 			String cleanedOutput = toNormalHtml(outputDocument);
 			String cleanedExpectedOutput = toNormalHtml(expectedOutputDocument);
-
-			System.out.println(cleanedOutput);
-			System.out.println(cleanedExpectedOutput);
 
 			Assert.assertEquals(
 				"test "+name,

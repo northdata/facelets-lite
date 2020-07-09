@@ -32,6 +32,7 @@ import javax.xml.transform.dom.DOMResult;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
+import org.apache.commons.text.StringEscapeUtils;
 import org.faceletslite.Configuration;
 import org.faceletslite.CustomTag;
 import org.faceletslite.Facelet;
@@ -445,7 +446,6 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			private final Map<String, SourceFragment> defines;
 			private MutableContext context;
 			private boolean swallowComments = true;
-			private String targetDocType;
 
 			public Processor(Document targetDocument, MutableContext context, Map<String, SourceFragment> defines)
 			{
@@ -475,8 +475,8 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 						String newValue = eval(attr);
 						if (Is.notEmpty(newValue)) {
 							// XSS protection. No, the document transformer HTML generator
-							// won' t do this for :-( How do we do it???
-							targetElement.setAttribute(name, newValue);
+							// won' t do this for us :-(
+							targetElement.setAttribute(name, StringEscapeUtils.escapeHtml4(newValue));
 						}
 	    			}
 	    		}
@@ -855,7 +855,6 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		    	return result;
 		    }
 
-		    @SuppressWarnings("unchecked")
 			<T> T eval(String text, Class<T> clazz)
 		    {
 		    	try {
@@ -1191,7 +1190,6 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 
     static class Safe
     {
-    	@SuppressWarnings("unchecked")
     	public static boolean equals(Object obj1, Object obj2)
     	{
     		if (obj1==obj2) {
