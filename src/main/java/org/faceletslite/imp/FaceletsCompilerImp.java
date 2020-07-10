@@ -105,15 +105,12 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
     			if (!result.isNamespaceAware()) {
     				throw new RuntimeException("document builder factory must be set to namespace-aware.");
     			}
-    			result.reset();
     			return result;
     		}
     	};
     	this.documentTransformerPool = new Pool<Transformer>() {
     		@Override public Transformer create() {
-    			Transformer result = configuration.createDocumentTransformer();
-    			result.reset();
-    			return result;
+    			return configuration.createDocumentTransformer();
     		}
     	};
     	ResourceReader standardResourceReader = configuration.getResourceReader();
