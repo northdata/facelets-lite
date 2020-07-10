@@ -6,14 +6,14 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
-public interface CustomTag 
+public interface CustomTag
 {
-	interface Renderer 
+	interface Renderer
 	{
-		String html(Node node);
+		String html(Document node);
 	}
-	
-	interface Processor 
+
+	interface Processor
 	{
 	    <T> T attr(Element element, String name, Class<T> clazz);
 	    <T> T requiredAttr(Element element, String name, Class<T> clazz);
@@ -21,6 +21,6 @@ public interface CustomTag
 		List<Node> text(String text, boolean escape);
 		Document getTargetDocument();
 	}
-	
+
 	public List<Node> process(Element element, Processor processor, Renderer renderer);
 }

@@ -1,4 +1,7 @@
 package org.faceletslite.test;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.junit.Assert.assertThat;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -60,21 +63,16 @@ public class FaceletTest
 		checkAgainstExpectedOutput("set1");
 	}
 
+	/**
+	 * NOTE: checkAgainstExpectedOutput() unescapes HTML escapes in attribute values,
+	 * so we cannot use it for this test.
+	 */
 	@Test
-	public void testXss()
+	public void testXss() throws IOException
 	{
-		try
-		{
-			String output = compile("xss.html", null);
-			Assert.assertFalse(
-				"test tag values to be escaped",
-				output.contains("<xss")
-			);
-		}
-		catch (IOException exc)
-		{
-			Assert.fail(exc.getMessage());
-		}
+		String output = compile("xss.html", null);
+		assertThat(output, containsString("&lt;xss/&gt;"));
+		assertThat(output, containsString("&lt;script/&gt;"));
 	}
 
 	@Test
@@ -91,12 +89,18 @@ public class FaceletTest
 	}
 
 	@Test
+	public void testNoEscape()
+	{
+		checkAgainstExpectedOutput("noescape");
+	}
+
+	@Test
 	public void testDocType() throws IOException
 	{
 		String docType = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">";
 		String input = docType+"<html></html>";
 		String output = compiler.compile(new ByteArrayInputStream(input.getBytes())).render(null);
-		Assert.assertTrue(output.contains(docType));
+		assertThat(output, containsString(docType));
 	}
 
 	@Test
@@ -217,5 +221,4 @@ public class FaceletTest
 			in.close();
 		}
 	}
-
 }
