@@ -25,13 +25,15 @@ import javax.el.FunctionMapper;
 import javax.el.ValueExpression;
 import javax.el.VariableMapper;
 import javax.xml.parsers.DocumentBuilder;
-import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.dom.DOMResult;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
+import org.dom4j.io.DOMReader;
+import org.dom4j.io.HTMLWriter;
+import org.dom4j.io.OutputFormat;
 import org.faceletslite.Configuration;
 import org.faceletslite.CustomTag;
 import org.faceletslite.Facelet;
@@ -103,15 +105,12 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
     			if (!result.isNamespaceAware()) {
     				throw new RuntimeException("document builder factory must be set to namespace-aware.");
     			}
-    			result.reset();
     			return result;
     		}
     	};
     	this.documentTransformerPool = new Pool<Transformer>() {
     		@Override public Transformer create() {
-    			Transformer result = configuration.createDocumentTransformer();
-    			result.reset();
-    			return result;
+    			return configuration.createDocumentTransformer();
     		}
     	};
     	ResourceReader standardResourceReader = configuration.getResourceReader();
@@ -199,33 +198,22 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
    	}
 
 	@Override
-	public String html(Node node)
+	public String html(Document node)
 	{
 		StringWriter writer = new StringWriter();
-		if (node instanceof Document) {
-			String docType = Dom.getDocType(((Document)node));
-			if (Is.notEmpty(docType)) {
-				writer.write(docType + "\r\n");
-			}
-		}
-		Transformer documentWriter = documentTransformerPool.get();
-		documentWriter.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
-		documentWriter.setOutputProperty(OutputKeys.INDENT, "no");
-		documentWriter.setOutputProperty(OutputKeys.METHOD, "html");
-	    documentWriter.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
 		try
 		{
-			documentWriter.transform(new DOMSource(node), new StreamResult(writer));
-			writer.flush();
+			DOMReader reader = new DOMReader();
+			org.dom4j.Document document = reader.read(node);
+			OutputFormat format = new OutputFormat();
+			format.setExpandEmptyElements(true);
+			HTMLWriter htmlWriter = new EscapeAwareHtmlWriter(writer, format);
+			htmlWriter.write(document);
 			return writer.toString();
 		}
-		catch (TransformerException exc)
+		catch (IOException exc)
 		{
 			throw new RuntimeException("cannot write", exc);
-		}
-		finally
-		{
-			documentTransformerPool.release(documentWriter);
 		}
 	}
 
@@ -382,18 +370,8 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		{
 			Document targetDocument = newDocument();
 			List<Node> processedNodes = process(targetDocument, new MutableContext().scope(scope), null);
-			Node target = hasDocType(processedNodes) ? targetDocument : targetDocument.createDocumentFragment();
-			Dom.appendChildren(target, processedNodes);
-			return html(target);
-		}
-
-		boolean hasDocType(List<Node> nodes) {
-			if (nodes.size()>0) {
-				if (nodes.get(0) instanceof DocumentType) {
-					return true;
-				}
-			}
-			return false;
+			Dom.appendChildren(targetDocument, processedNodes);
+			return html(targetDocument);
 		}
 
 		List<Node> process(Document targetDocument, MutableContext context, Map<String, SourceFragment> defines)
@@ -445,7 +423,6 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			private final Map<String, SourceFragment> defines;
 			private MutableContext context;
 			private boolean swallowComments = true;
-			private String targetDocType;
 
 			public Processor(Document targetDocument, MutableContext context, Map<String, SourceFragment> defines)
 			{
@@ -474,8 +451,6 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	    			if (isHtmlNamespace(Dom.nsUri(attr)) && !name.startsWith("xmlns")) {
 						String newValue = eval(attr);
 						if (Is.notEmpty(newValue)) {
-							// XSS protection. No, the document transformer HTML generator
-							// won' t do this for :-( How do we do it???
 							targetElement.setAttribute(name, newValue);
 						}
 	    			}
@@ -855,7 +830,6 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		    	return result;
 		    }
 
-		    @SuppressWarnings("unchecked")
 			<T> T eval(String text, Class<T> clazz)
 		    {
 		    	try {
@@ -1191,7 +1165,6 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 
     static class Safe
     {
-    	@SuppressWarnings("unchecked")
     	public static boolean equals(Object obj1, Object obj2)
     	{
     		if (obj1==obj2) {
