@@ -78,6 +78,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 	}
 
 	private static final Logger log = Logger.getLogger(FaceletsCompiler.class.getName());
+	private static final String DUMMY_ROOT = "dummy-root";
 
     private final Map<String, ResourceReader> resourceReaderByNsUri = new HashMap<String, ResourceReader>();
     private final Map<String, Namespace> namespaceByUri = new HashMap<String, Namespace>();
@@ -208,7 +209,12 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 			OutputFormat format = new OutputFormat();
 			format.setExpandEmptyElements(true);
 			HTMLWriter htmlWriter = new EscapeAwareHtmlWriter(writer, format);
-			htmlWriter.write(document);
+			if (document.getRootElement().getName().equals(DUMMY_ROOT)) {
+				htmlWriter.write(document.getRootElement().content());
+			}
+			else {
+				htmlWriter.write(document);
+			}
 			return writer.toString();
 		}
 		catch (IOException exc)
@@ -370,8 +376,25 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 		{
 			Document targetDocument = newDocument();
 			List<Node> processedNodes = process(targetDocument, new MutableContext().scope(scope), null);
-			Dom.appendChildren(targetDocument, processedNodes);
+
+			if (hasDocType(processedNodes)) {
+				Dom.appendChildren(targetDocument, processedNodes);
+
+			} else {
+				Element root = targetDocument.createElement(DUMMY_ROOT);
+				targetDocument.appendChild(root);
+				Dom.appendChildren(root, processedNodes);
+			}
 			return html(targetDocument);
+		}
+
+		boolean hasDocType(List<Node> nodes) {
+			if (nodes.size()>0) {
+				if (nodes.get(0) instanceof DocumentType) {
+					return true;
+				}
+			}
+			return false;
 		}
 
 		List<Node> process(Document targetDocument, MutableContext context, Map<String, SourceFragment> defines)
