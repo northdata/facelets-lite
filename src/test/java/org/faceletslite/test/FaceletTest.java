@@ -70,10 +70,22 @@ public class FaceletTest
 			Assert.assertFalse(
 				"test tag values to be escaped",
 				output.contains("<xss")
-			);
+				);
 		}
 		catch (IOException exc)
 		{
+			Assert.fail(exc.getMessage());
+		}
+	}
+
+	@Test
+	public void testCData() {
+		try {
+			String output = compile("cdata.html", null);
+			Assert.assertFalse(
+				"cdata section should not be escaped",
+				output.contains("&<>"));
+		} catch (IOException exc) {
 			Assert.fail(exc.getMessage());
 		}
 	}
@@ -158,7 +170,7 @@ public class FaceletTest
 				"test "+name,
 				cleanedExpectedOutput,
 				cleanedOutput
-			);
+				);
 		}
 		catch (IOException exc)
 		{
@@ -182,7 +194,7 @@ public class FaceletTest
 				public void head(Node arg0, int arg1) {
 				}
 			}
-		);
+			);
 		return cleaner.clean(doc).html();
 	}
 
