@@ -79,9 +79,9 @@ public class FaceletTest
 	public void testCData() {
 		try {
 			String output = compile("cdata.html", null);
-			Assert.assertFalse(
-				"cdata section should not be escaped",
-				output.contains("&<>"));
+			Assert.assertTrue(
+				"script section should not be escaped",
+				output.contains("console.info( i >= 0 && i < 1 );"));
 		} catch (IOException exc) {
 			Assert.fail(exc.getMessage());
 		}

@@ -5,6 +5,7 @@ import java.io.Writer;
 
 import javax.xml.transform.stream.StreamResult;
 
+import org.dom4j.Element;
 import org.dom4j.ProcessingInstruction;
 import org.dom4j.io.HTMLWriter;
 import org.dom4j.io.OutputFormat;
@@ -28,6 +29,27 @@ public class EscapeAwareHtmlWriter extends HTMLWriter {
 			setEscapeText(false);
 		} else if (pi.getTarget().equals(StreamResult.PI_ENABLE_OUTPUT_ESCAPING)) {
 			setEscapeText(true);
+		}
+	}
+
+	/**
+	 * Javascript sections need unescaped text in CDATA.
+	 */
+	@Override
+	public void writeElementContent(Element element) throws IOException {
+		if ("script".equalsIgnoreCase(element.getName())) {
+			setEscapeText(false);
+			println();
+			writer.write(" // <![CDATA[");
+			println();
+			super.writeElementContent(element);
+			println();
+			writer.write(" // ]]>");
+			println();
+			setEscapeText(true);
+		}
+		else {
+			super.writeElementContent(element);
 		}
 	}
 }
