@@ -38,15 +38,18 @@ public class EscapeAwareHtmlWriter extends HTMLWriter {
 	@Override
 	public void writeElementContent(Element element) throws IOException {
 		if ("script".equalsIgnoreCase(element.getName())) {
-			setEscapeText(false);
-			println();
-			writer.write(" // <![CDATA[");
-			println();
-			super.writeElementContent(element);
-			println();
-			writer.write(" // ]]>");
-			println();
-			setEscapeText(true);
+			String type = element.attributeValue("type");
+			if (type != null && type.contains("/javascript")) {
+				setEscapeText(false);
+				println();
+				writer.write(" // <![CDATA[");
+				println();
+				super.writeElementContent(element);
+				println();
+				writer.write(" // ]]>");
+				println();
+				setEscapeText(true);
+			}
 		}
 		else {
 			super.writeElementContent(element);
