@@ -2,7 +2,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.northdata</groupId>
 	<artifactId>facelets-lite</artifactId>
-	<version>1.2.0</version>
+	<version>1.2.1-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
 	<name>Facelets Lite</name>
@@ -121,7 +121,7 @@
 		<connection>scm:git:git@github.com:northdata/facelets-lite.git</connection>
 		<developerConnection>scm:git:git@github.com:northdata/facelets-lite.git</developerConnection>
 		<url>http://github.com/northdata/facelets-lite/tree/master</url>
-		<tag>facelets-lite-1.2.0</tag>
+		<tag>HEAD</tag>
 	</scm>
 
 	<distributionManagement>
