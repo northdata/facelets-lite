@@ -63,9 +63,6 @@
 		</dependency>
 	</dependencies>
 
-
-
-
 	<scm>
 		<connection>scm:git:git@github.com:northdata/facelets-lite.git</connection>
 		<developerConnection>scm:git:git@github.com:northdata/facelets-lite.git</developerConnection>
