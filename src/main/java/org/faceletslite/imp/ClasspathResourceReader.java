@@ -3,11 +3,10 @@ package org.faceletslite.imp;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.faceletslite.ResourceReader;
-import org.faceletslite.imp.FileResourceReader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Loads resources from the classpath.
@@ -19,7 +18,7 @@ import org.faceletslite.imp.FileResourceReader;
  */
 public class ClasspathResourceReader implements ResourceReader {
 
-    private static final Logger log = Logger.getLogger(FileResourceReader.class.getName());
+    private static final Logger log = LoggerFactory.getLogger(ClasspathResourceReader.class);
 
     private final String rootDir;
     private final String defaultExtension;
@@ -57,7 +56,7 @@ public class ClasspathResourceReader implements ResourceReader {
         InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream(filename);
         if (is == null) {
             String msg = "cannot find '" + filename + "'";
-            log.log(Level.SEVERE, msg);
+            log.error(msg);
             throw new FileNotFoundException(msg);
         }
         return is;
