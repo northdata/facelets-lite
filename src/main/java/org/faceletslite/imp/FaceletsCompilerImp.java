@@ -467,10 +467,22 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                 }
                 if ("forEach".equalsIgnoreCase(tagName)) {
                     List<Node> result = new ArrayList<Node>();
-                    Iterable<?> _items = attr(element, "items", Iterable.class);
+                    Object _items = attr(element, "items", Object.class);
+                    Iterable<?> iterable = null;
+                    if (_items == null) {
+
+                    } else if (_items instanceof Iterable<?>) {
+                        iterable = (Iterable<?>) _items;
+                    } else if (_items instanceof Map<?, ?>) {
+                        iterable = ((Map<?, ?>) _items).entrySet();
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Cannot convert class " + _items.getClass() + " to Iterable");
+                    }
+
                     List<Object> items = new ArrayList<Object>();
-                    if (_items != null) {
-                        for (Object item: _items) {
+                    if (iterable != null) {
+                        for (Object item: iterable) {
                             items.add(item);
                         }
                     }
