@@ -1,10 +1,13 @@
 package org.faceletslite.imp;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Paths;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 
@@ -89,17 +92,28 @@ public class ClasspathResourceReader implements ResourceReader {
         }
 
         String url = resource.toString();
-        if (!url.startsWith("jar:file:")) {
-            return getInputStreamFromClassloader(filename);
+        if (url.startsWith("file:")) {
+            try {
+                File file = Paths.get(resource.toURI()).toFile();
+                return new FileInputStream(file);
+            } catch (URISyntaxException exc) {
+                log.error("cannot convert URL to file: {}", url, exc);
+                return null;
+            }
         }
 
-        int excl = url.indexOf('!');
-        url = url.substring("jar:file:".length(), excl);
+        if (url.startsWith("jar:file:")) {
+            int excl = url.indexOf('!');
+            url = url.substring("jar:file:".length(), excl);
 
-        JarFile jarFile = new JarFile(new File(url));
-        ZipEntry entry = jarFile.getEntry(filename);
-        InputStream is = jarFile.getInputStream(entry);
-        return new JarEntryInputStream(jarFile, is);
+            JarFile jarFile = new JarFile(new File(url));
+            ZipEntry entry = jarFile.getEntry(filename);
+            InputStream is = jarFile.getInputStream(entry);
+            return new JarEntryInputStream(jarFile, is);
+        }
+
+        return getInputStreamFromClassloader(filename);
+
     }
 
     private InputStream getInputStreamFromClassloader(String filename) throws IOException {
