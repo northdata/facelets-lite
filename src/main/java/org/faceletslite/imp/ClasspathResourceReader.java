@@ -41,7 +41,7 @@ public class ClasspathResourceReader implements ResourceReader {
             defaultExtension = "." + defaultExtension;
         }
         this.defaultExtension = defaultExtension;
-        this.reload = true;
+        this.reload = reload;
     }
 
     public String getRootDir() {
