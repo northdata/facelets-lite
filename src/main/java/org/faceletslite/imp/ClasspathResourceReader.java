@@ -36,7 +36,8 @@ public class ClasspathResourceReader implements ResourceReader {
     }
 
     public ClasspathResourceReader(String rootDir, String defaultExtension, boolean reload) {
-        this.rootDir = rootDir;
+        this.rootDir = rootDir.replaceAll("/*$", "");
+
         if (!defaultExtension.startsWith(".")) {
             defaultExtension = "." + defaultExtension;
         }
@@ -59,9 +60,11 @@ public class ClasspathResourceReader implements ResourceReader {
             uri += extension;
         }
         String dir = getRootDir();
-        if (!dir.endsWith("/") && !uri.startsWith("/")) {
+
+        if (!uri.startsWith("/")) {
             uri = "/" + uri;
         }
+
         String filename = dir + uri;
         if (filename.startsWith("/")) {
             filename = filename.substring(1);
@@ -116,9 +119,8 @@ public class ClasspathResourceReader implements ResourceReader {
 
     }
 
-    private InputStream getInputStreamFromClassloader(String filename) throws IOException {
-        InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream(filename);
-        return is;
+    private InputStream getInputStreamFromClassloader(String filename) {
+        return Thread.currentThread().getContextClassLoader().getResourceAsStream(filename);
     }
 
 }
