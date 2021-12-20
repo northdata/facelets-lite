@@ -25,7 +25,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 import org.jsoup.safety.Cleaner;
-import org.jsoup.safety.Whitelist;
+import org.jsoup.safety.Safelist;
 import org.jsoup.select.NodeVisitor;
 import org.junit.jupiter.api.Test;
 
@@ -33,7 +33,7 @@ public class FaceletTest {
 
     org.faceletslite.FaceletsCompiler compiler;
     String resourceDir = "src/test/resources/";
-    private final Cleaner cleaner = new Cleaner(Whitelist.relaxed());
+    private final Cleaner cleaner = new Cleaner(Safelist.relaxed());
 
     public FaceletTest() {
         Configuration configuration = new DefaultConfiguration() {
