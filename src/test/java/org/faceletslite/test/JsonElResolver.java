@@ -15,7 +15,6 @@ import org.json.JSONObject;
 
 public class JsonElResolver extends ELResolver
 {
-    @SuppressWarnings("unchecked")
 	@Override
     public Object getValue(ELContext elContext, Object base, Object property)
     {
@@ -63,7 +62,7 @@ public class JsonElResolver extends ELResolver
     @Override
     public Iterator<FeatureDescriptor> getFeatureDescriptors(ELContext elContext, Object base)
     {
-        return Collections.<FeatureDescriptor>emptyList().iterator();
+        return Collections.emptyIterator();
     }
     
     

@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory;
  */
 public class ServletContextResourceReader implements ResourceReader {
 
-    private static Logger log = LoggerFactory.getLogger(ServletContextResourceReader.class);
+    private static final Logger log = LoggerFactory.getLogger(ServletContextResourceReader.class);
 
     private final ServletContext context;
     private final String path;
