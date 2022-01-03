@@ -10,8 +10,8 @@ import java.nio.file.Paths;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class ClasspathResourceReaderTest {
 
@@ -21,13 +21,13 @@ public class ClasspathResourceReaderTest {
         ClasspathResourceReader classpathResourceReader = new ClasspathResourceReader("/compare/", ".html", true);
 
         try (InputStream readWithSlash = classpathResourceReader.read("/composition.expected.html")) {
-            Assert.assertNotNull(readWithSlash);
+            Assertions.assertThat(readWithSlash)
+                .isNotNull();
         }
 
         try (InputStream readWithoutSlash = classpathResourceReader.read("composition.expected.html")) {
-
-            Assert.assertNotNull(readWithoutSlash);
-
+            Assertions.assertThat(readWithoutSlash)
+                .isNotNull();
         }
 
     }
@@ -54,13 +54,14 @@ public class ClasspathResourceReaderTest {
             Thread.currentThread().setContextClassLoader(urlClassLoader);
 
             try (InputStream readWithSlash = classpathResourceReader.read("/composition.expected1.html")) {
-                Assert.assertNotNull(readWithSlash);
+                Assertions.assertThat(readWithSlash)
+                    .isNotNull();
             }
 
             try (InputStream readWithoutSlash = classpathResourceReader.read("composition.expected1.html")) {
 
-                Assert.assertNotNull(readWithoutSlash);
-
+                Assertions.assertThat(readWithoutSlash)
+                    .isNotNull();
             }
 
         } finally {

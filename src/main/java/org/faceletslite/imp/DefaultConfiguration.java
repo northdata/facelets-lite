@@ -42,10 +42,8 @@ public class DefaultConfiguration implements Configuration {
 
     private static final Logger log = LoggerFactory.getLogger(FaceletsCompiler.class);
 
-    static String DEFAULT_EXPRESSION_FACTORY_CLASS = "de.odysseus.el.ExpressionFactoryImpl";
-
-    private final List<Namespace> namespaces = new ArrayList<Namespace>();
-    private final Map<String, List<Class<?>>> classesByPrefix = new HashMap<String, List<Class<?>>>();
+    private final List<Namespace> namespaces = new ArrayList<>();
+    private final Map<String, List<Class<?>>> classesByPrefix = new HashMap<>();
 
     public DocumentBuilderFactory getDocumentBuilderFactory() {
         try {
@@ -178,7 +176,7 @@ public class DefaultConfiguration implements Configuration {
     public void addFunctions(String prefix, Class<?> clazz) {
         List<Class<?>> classes = classesByPrefix.get(prefix);
         if (classes == null) {
-            classes = new ArrayList<Class<?>>();
+            classes = new ArrayList<>();
             classesByPrefix.put(prefix, classes);
         }
         classes.add(clazz);
@@ -186,6 +184,6 @@ public class DefaultConfiguration implements Configuration {
 
     @Override
     public Map<String, Facelet> getCache() {
-        return new ConcurrentHashMap<String, Facelet>();
+        return new ConcurrentHashMap<>();
     }
 }

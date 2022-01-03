@@ -11,7 +11,7 @@ import javax.el.FunctionMapper;
 public class FunctionMapperImp extends FunctionMapper 
 {
 	private final Map<String,List<Class<?>>> classesByPrefix;
-	private final Map<String,Method> methodByPrefixAndName = new ConcurrentHashMap<String, Method>();
+	private final Map<String,Method> methodByPrefixAndName = new ConcurrentHashMap<>();
 
 	public FunctionMapperImp(Map<String, List<Class<?>>> classesByPrefix)
 	{
@@ -27,7 +27,7 @@ public class FunctionMapperImp extends FunctionMapper
 			if (classes==null) {
 				return null;
 			}
-			List<Method> matches = new ArrayList<Method>();
+			List<Method> matches = new ArrayList<>();
 			for (Class<?> clazz: classes) {
 				for (Method method: clazz.getMethods()) {
 					if (method.getName().equals(name)) {
