@@ -6,8 +6,8 @@ import java.util.AbstractList;
 import java.util.Collections;
 import java.util.Iterator;
 
-import javax.el.ELContext;
-import javax.el.ELResolver;
+import jakarta.el.ELContext;
+import jakarta.el.ELResolver;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
