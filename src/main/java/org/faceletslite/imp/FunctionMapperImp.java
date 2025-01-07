@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import javax.el.FunctionMapper;
+import jakarta.el.FunctionMapper;
 
 public class FunctionMapperImp extends FunctionMapper 
 {

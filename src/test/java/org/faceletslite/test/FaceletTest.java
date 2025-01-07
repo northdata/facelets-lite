@@ -10,8 +10,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.el.CompositeELResolver;
-import javax.el.ELResolver;
+import jakarta.el.CompositeELResolver;
+import jakarta.el.ELResolver;
 
 import org.assertj.core.api.Assertions;
 import org.faceletslite.Configuration;
@@ -170,7 +170,6 @@ public class FaceletTest {
     }
 
     String toNormalHtml(Document doc) {
-        doc.normalise();
         doc.traverse(
             new NodeVisitor() {
 

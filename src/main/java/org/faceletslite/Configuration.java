@@ -14,9 +14,9 @@ public interface Configuration
 	javax.xml.transform.Transformer createDocumentTransformer();
 	
 	// EL Expression Language 
-	javax.el.ExpressionFactory getExpressionFactory();
-	javax.el.ELResolver getELResolver();
-	javax.el.FunctionMapper getFunctionMapper();
+	jakarta.el.ExpressionFactory getExpressionFactory();
+	jakarta.el.ELResolver getELResolver();
+	jakarta.el.FunctionMapper getFunctionMapper();
 
 	// Else...
 	Map<String, Facelet> getCache();
