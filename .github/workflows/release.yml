@@ -31,4 +31,5 @@ jobs:
         gpg_passphrase: ${{ secrets.gpg_passphrase }}
         server_username: ${{ secrets.SONATYPE_USERNAME }}
         server_password: ${{ secrets.SONATYPE_PASSWORD }}
-        maven_profiles: release        
+        maven_profiles: release
+        settings_path: .mvn/settings.xml 
