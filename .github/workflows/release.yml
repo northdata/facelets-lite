@@ -25,10 +25,10 @@ jobs:
         cache: maven
           
     - name: Release Maven package
-      uses: samuelmeuli/action-maven-publish@v1.4.0
+      uses: WasiqB/maven-publish-action@v2.9.0
       with:
         gpg_private_key: ${{ secrets.gpg_private_key }}
         gpg_passphrase: ${{ secrets.gpg_passphrase }}
-        nexus_username: ${{ secrets.SONATYPE_USERNAME }}
-        nexus_password: ${{ secrets.SONATYPE_PASSWORD }}
+        server_username: ${{ secrets.SONATYPE_USERNAME }}
+        server_password: ${{ secrets.SONATYPE_PASSWORD }}
         maven_profiles: release        
