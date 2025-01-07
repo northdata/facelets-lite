@@ -170,7 +170,6 @@ public class FaceletTest {
     }
 
     String toNormalHtml(Document doc) {
-        doc.normalise();
         doc.traverse(
             new NodeVisitor() {
 
