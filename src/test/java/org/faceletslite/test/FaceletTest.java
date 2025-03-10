@@ -122,6 +122,14 @@ public class FaceletTest {
     }
 
     @Test
+    void testRecordValueExpression() {
+        Map<String, Object> context = new HashMap<>();
+        context.put("person", new PersonRecord("Donald", "Duck"));
+        checkAgainstExpectedOutput("record", context);
+    }
+
+
+    @Test
     void testWhenWithBoolean() {
         Map<String, Object> context = new HashMap<>();
         context.put("foo", true);
