@@ -57,14 +57,7 @@ public class JsonElResolver extends ELResolver
     public Class<?> getCommonPropertyType(ELContext elContext, Object base) 
     {
         return Object.class;
-    }
-
-    @Override
-    public Iterator<FeatureDescriptor> getFeatureDescriptors(ELContext elContext, Object base)
-    {
-        return Collections.emptyIterator();
-    }
-    
+    }    
     
     private Object transformResult(Object object)
     {

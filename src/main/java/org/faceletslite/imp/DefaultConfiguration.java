@@ -17,6 +17,8 @@ import jakarta.el.ExpressionFactory;
 import jakarta.el.FunctionMapper;
 import jakarta.el.ListELResolver;
 import jakarta.el.MapELResolver;
+import jakarta.el.RecordELResolver;
+
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -123,6 +125,7 @@ public class DefaultConfiguration implements Configuration {
     @Override
     public ELResolver getELResolver() {
         CompositeELResolver result = new CompositeELResolver();
+        result.add(new RecordELResolver());
         result.add(new MapELResolver());
         result.add(new ArrayELResolver());
         result.add(new ListELResolver());
