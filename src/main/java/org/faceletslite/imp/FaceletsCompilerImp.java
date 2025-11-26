@@ -1119,6 +1119,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 
     static class Const {
 
+        @SafeVarargs
         public static <T> Set<T> setOf(T... objects) {
             Set<T> result = new LinkedHashSet<T>(objects.length);
             for (T object: objects) {
