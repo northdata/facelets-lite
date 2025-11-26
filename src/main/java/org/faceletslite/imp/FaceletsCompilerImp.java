@@ -1,5 +1,8 @@
 package org.faceletslite.imp;
 
+import static org.faceletslite.imp.LocationAwareParser.getLocation;
+import static org.faceletslite.imp.LocationAwareParser.parseWithLocations;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -16,17 +19,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import jakarta.el.ELContext;
-import jakarta.el.ELResolver;
-import jakarta.el.ExpressionFactory;
-import jakarta.el.FunctionMapper;
-import jakarta.el.ValueExpression;
-import jakarta.el.VariableMapper;
 import javax.xml.parsers.DocumentBuilder;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerException;
-import javax.xml.transform.dom.DOMResult;
-import javax.xml.transform.dom.DOMSource;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.stream.StreamResult;
 
 import org.dom4j.io.DOMReader;
@@ -38,6 +32,7 @@ import org.faceletslite.Facelet;
 import org.faceletslite.FaceletsCompiler;
 import org.faceletslite.Namespace;
 import org.faceletslite.ResourceReader;
+import org.faceletslite.imp.LocationAwareParser.Location;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Attr;
@@ -53,6 +48,13 @@ import org.w3c.dom.Text;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
+
+import jakarta.el.ELContext;
+import jakarta.el.ELResolver;
+import jakarta.el.ExpressionFactory;
+import jakarta.el.FunctionMapper;
+import jakarta.el.ValueExpression;
+import jakarta.el.VariableMapper;
 
 public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer {
 
@@ -88,7 +90,6 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
     private final ELResolver resolver;
     private final Map<String, Facelet> templateCache;
     private final Pool<DocumentBuilder> documentBuilderPool;
-    private final Pool<Transformer> documentTransformerPool;
 
     public FaceletsCompilerImp() {
         this(new DefaultConfiguration());
@@ -108,13 +109,6 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                     throw new RuntimeException("document builder factory must be set to namespace-aware.");
                 }
                 return result;
-            }
-        };
-        this.documentTransformerPool = new Pool<Transformer>() {
-
-            @Override
-            public Transformer create() {
-                return configuration.createDocumentTransformer();
             }
         };
         ResourceReader standardResourceReader = configuration.getResourceReader();
@@ -223,7 +217,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
         } finally {
             documentBuilderPool.release(builder);
         }
-    }
+    }    
 
     class FaceletImp implements Facelet {
 
@@ -253,18 +247,13 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 
                 @Override
                 protected Document create() {
-                    Transformer transformer = documentTransformerPool.get();
+                    DocumentBuilder builder = documentBuilderPool.get();
                     try {
                         synchronized (sourceDocument) {
-                            DOMSource source = new DOMSource(sourceDocument);
-                            DOMResult result = new DOMResult();
-                            transformer.transform(source, result);
-                            return (Document) result.getNode();
+                            return LocationAwareParser.cloneDocumentPreservingLocation(builder, sourceDocument);
                         }
-                    } catch (TransformerException exc) {
-                        throw new RuntimeException("cannot clone source document", exc);
                     } finally {
-                        documentTransformerPool.release(transformer);
+                        documentBuilderPool.release(builder);
                     }
                 };
             };
@@ -282,12 +271,10 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
         private Document parse() throws IOException {
             DocumentBuilder builder = documentBuilderPool.get();
             StringReader reader = new StringReader(sourceText);
+            String resourceInfo = getResourceInfo(resourceName, namespace);
             try {
-                Document document = builder.parse(new InputSource(reader));
-                //  		document.normalizeDocument();
-                return document;
+                return parseWithLocations(builder, new InputSource(reader), resourceInfo);
             } catch (SAXException exc) {
-                String resourceInfo = getResourceInfo(resourceName, namespace);
                 if (exc instanceof SAXParseException) {
                     SAXParseException parseExc = (SAXParseException) exc;
                     int line = parseExc.getLineNumber();
@@ -300,6 +287,8 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                     }
                 }
                 throw new RuntimeException("cannot parse " + resourceInfo + ":\r\n\t" + exc.getMessage(), exc);
+            } catch (ParserConfigurationException exc) {
+                throw new RuntimeException(exc);
             } finally {
                 reader.close();
                 documentBuilderPool.release(builder);
@@ -346,8 +335,17 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
         }
 
         RuntimeException error(String message) {
-            throw error(message, null);
+            throw error(message, (Exception) null);
         }
+
+        RuntimeException error(String message, Location location) {
+            throw error(message + ", line " + location.line() + ", column " + location.column(), (Exception) null);
+        }
+
+        RuntimeException error(String message, Location location, Exception reason) {
+            throw error(message + ", line " + location.line() + ", column " + location.column(), reason);
+        }
+
 
         @Override
         public String render(Object scope) {
@@ -476,8 +474,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                     } else if (_items instanceof Map<?, ?>) {
                         iterable = ((Map<?, ?>) _items).entrySet();
                     } else {
-                        throw new IllegalArgumentException(
-                            "Cannot convert class " + _items.getClass() + " to Iterable");
+                        throw error("Cannot convert class " + _items.getClass() + " to Iterable", getLocation(element));
                     }
 
                     List<Object> items = new ArrayList<Object>();
@@ -519,7 +516,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                     }
                     return nodes();
                 }
-                throw error("invalid core tag name '" + tagName + "'");
+                throw error("invalid core tag name '" + tagName + "'", getLocation(element));
             }
 
             List<Node> compileUiTag(Element element) {
@@ -542,7 +539,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                             with(newContext, defines).compileChildren(template.getRootNode(targetDocument));
                             return template.process(targetDocument, newContext, defines);
                         } catch (IOException exc) {
-                            throw error("cannot include '" + src + "'", exc);
+                            throw error("cannot include '" + src + "'", getLocation(element), exc);
                         }
                     }
                 }
@@ -590,7 +587,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                     // ignore (already processed)
                     return nodes();
                 }
-                throw error("invalid ui tag name '" + tagName + "'");
+                throw error("invalid ui tag name '" + tagName + "'", getLocation(element));
             }
 
             List<Node> compileJsfHTag(Element element) {
@@ -604,7 +601,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                         return text(value, escape == null || !escape.equals(Boolean.FALSE));
                     }
                 }
-                throw error("invalid h tag name '" + tagName + "'");
+                throw error("invalid h tag name '" + tagName + "'", getLocation(element));
             }
 
             List<Node> compileCustomTag(Element element) {
@@ -621,7 +618,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                 for (Attr attr: Dom.attrs(element)) {
                     newContext.put(
                         attr.getName(),
-                        eval(attr.getValue(), Object.class));
+                        eval(attr.getValue(), getLocation(attr.getOwnerElement()), Object.class));
                 }
                 try {
                     FaceletImp template = FaceletsCompilerImp.this.compile(tagName, nsUri);
@@ -629,7 +626,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                         newContext,
                         collectDefines(element)));
                 } catch (IOException exc) {
-                    throw error("cannot load " + element.getPrefix() + ":" + tagName, exc);
+                    throw error("cannot load " + element.getPrefix() + ":" + tagName, getLocation(element), exc);
                 }
             }
 
@@ -639,7 +636,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                 } else if (sourceNode instanceof Text) {
                     Text text = (Text) sourceNode;
                     String sourceText = text.getData();
-                    String targetText = eval(sourceText, String.class);
+                    String targetText = eval(sourceText, getLocation(sourceNode), String.class);
                     if (Is.empty(targetText)) {
                         return nodes();
                     } else {
@@ -708,7 +705,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                         collectParams(sourceElement),
                         collectDefines(sourceElement));
                 } catch (IOException exc) {
-                    throw error("cannot read template '" + templateAttr + "'", exc);
+                    throw error("cannot read template '" + templateAttr + "'", getLocation(sourceElement), exc);
                 }
             }
 
@@ -770,25 +767,25 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
             }
 
             String eval(Attr attr) {
-                return eval(attr.getValue(), String.class);
+                return eval(attr.getValue(), getLocation(attr), String.class);
             }
 
             @Override
             public <T> T attr(Element element, String name, Class<T> clazz) {
                 String value = element.getAttribute(name);
-                return Is.empty(value) ? null : eval(value, clazz);
+                return Is.empty(value) ? null : eval(value, getLocation(element), clazz);
             }
 
             @Override
             public <T> T requiredAttr(Element element, String name, Class<T> clazz) {
                 T result = attr(element, name, clazz);
                 if (Is.empty(result)) {
-                    throw error("missing attribute '" + name + "' in " + element.getTagName());
+                    throw error("missing attribute '" + name + "' in " + element.getTagName(), getLocation(element));
                 }
                 return result;
             }
 
-            <T> T eval(String text, Class<T> clazz) {
+            <T> T eval(String text, Location location, Class<T> clazz) {
                 try {
                     return context.eval(
                         text,
@@ -796,7 +793,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                         getEnvironmentVars());
                 } catch (RuntimeException exc) {
                     String message = text + " expression evaluation failed:\r\n\t" + exc.getMessage();
-                    throw error(message, exc);
+                    throw error(message, location, exc);
                 }
             }
         }
