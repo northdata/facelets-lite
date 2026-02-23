@@ -99,13 +99,13 @@ public class FaceletTest {
     public void testModuleImport() {
         try {
             String output = compile("module.html", null);
-            Assertions.assertThat(output)
+            assertThat(output)
                 .as("script section should not be escaped")
                 .contains("""
                     const inc = i => i + 1
                     """);
         } catch (IOException exc) {
-            Assertions.fail(exc.getMessage());
+            fail(exc.getMessage());
         }
     }
 
