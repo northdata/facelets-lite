@@ -1,5 +1,8 @@
 package org.faceletslite.test;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -10,10 +13,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-import jakarta.el.CompositeELResolver;
-import jakarta.el.ELResolver;
-
-import org.assertj.core.api.Assertions;
 import org.faceletslite.Configuration;
 import org.faceletslite.ResourceReader;
 import org.faceletslite.imp.DefaultConfiguration;
@@ -29,11 +28,14 @@ import org.jsoup.safety.Safelist;
 import org.jsoup.select.NodeVisitor;
 import org.junit.jupiter.api.Test;
 
+import jakarta.el.CompositeELResolver;
+import jakarta.el.ELResolver;
+
 public class FaceletTest {
 
     org.faceletslite.FaceletsCompiler compiler;
     String resourceDir = "src/test/resources/";
-    private final Cleaner cleaner = new Cleaner(Safelist.relaxed());
+    private final Cleaner cleaner = new Cleaner(Safelist.relaxed().addAttributes("button", "disabled", "class"));
 
     public FaceletTest() {
         Configuration configuration = new DefaultConfiguration() {
@@ -67,7 +69,7 @@ public class FaceletTest {
     @Test
     void testXss() throws IOException {
         String output = compile("xss.html", null);
-        Assertions.assertThat(output)
+        assertThat(output)
             .contains("&lt;xss/&gt;")
             .contains("&lt;script/&gt;");
     }
@@ -76,11 +78,11 @@ public class FaceletTest {
     public void testCData() {
         try {
             String output = compile("cdata.html", null);
-            Assertions.assertThat(output)
+            assertThat(output)
                 .withFailMessage("script section should not be escaped")
                 .contains("console.info( i >= 0 && i < 1 );");
         } catch (IOException exc) {
-            Assertions.fail(exc.getMessage());
+            fail(exc.getMessage());
         }
     }
 
@@ -110,7 +112,7 @@ public class FaceletTest {
         String docType = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">";
         String input = docType + "<html></html>";
         String output = compiler.compile(new ByteArrayInputStream(input.getBytes())).render(null);
-        Assertions.assertThat(output)
+        assertThat(output)
             .contains(docType);
     }
 
@@ -142,6 +144,19 @@ public class FaceletTest {
         checkAgainstExpectedOutput("when2", context);
     }
 
+    @Test
+    public void testHtmlBooleanAttrTrue() {
+        Map<String, Object> context = new HashMap<>();
+        context.put("disabled", "disabled");
+        checkAgainstExpectedOutput("booleanTrue", context);
+    }
+
+    @Test
+    public void testHtmlBooleanAttrFalse() {
+        Map<String, Object> context = new HashMap<>();
+        checkAgainstExpectedOutput("booleanFalse", context);
+    }
+
     void checkAgainstExpectedOutput(String name) {
         checkAgainstExpectedOutput(name, null);
     }
@@ -169,11 +184,9 @@ public class FaceletTest {
             String cleanedOutput = toNormalHtml(outputDocument);
             String cleanedExpectedOutput = toNormalHtml(expectedOutputDocument);
 
-            Assertions.assertThat(cleanedOutput)
-                .withFailMessage("test " + name)
-                .isEqualTo(cleanedExpectedOutput);
+            assertThat(cleanedOutput).isEqualTo(cleanedExpectedOutput);
         } catch (IOException exc) {
-            Assertions.fail(exc.getMessage());
+            fail(exc.getMessage());
         }
     }
 
