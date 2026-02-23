@@ -96,6 +96,20 @@ public class FaceletTest {
     }
 
     @Test
+    public void testModuleImport() {
+        try {
+            String output = compile("module.html", null);
+            Assertions.assertThat(output)
+                .as("script section should not be escaped")
+                .contains("""
+                    const inc = i => i + 1
+                    """);
+        } catch (IOException exc) {
+            Assertions.fail(exc.getMessage());
+        }
+    }
+
+    @Test
     public void testIf() {
         checkAgainstExpectedOutput("if1");
         checkAgainstExpectedOutput("if2");
