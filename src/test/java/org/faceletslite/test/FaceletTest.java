@@ -1,7 +1,8 @@
 package org.faceletslite.test;
 
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -9,9 +10,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-
-import jakarta.el.CompositeELResolver;
-import jakarta.el.ELResolver;
 
 import org.assertj.core.api.Assertions;
 import org.faceletslite.Configuration;
@@ -28,6 +26,9 @@ import org.jsoup.safety.Cleaner;
 import org.jsoup.safety.Safelist;
 import org.jsoup.select.NodeVisitor;
 import org.junit.jupiter.api.Test;
+
+import jakarta.el.CompositeELResolver;
+import jakarta.el.ELResolver;
 
 public class FaceletTest {
 
@@ -70,6 +71,15 @@ public class FaceletTest {
         Assertions.assertThat(output)
             .contains("&lt;xss/&gt;")
             .contains("&lt;script/&gt;");
+    }
+
+    @Test
+    void testErrorWithLocation() throws IOException {
+        assertThatExceptionOfType(RuntimeException.class)
+            .isThrownBy(() -> compile("foreach.error.html", null))
+            .withMessageContainingAll(
+                "Cannot convert class class java.lang.String to Iterable, line 3, column 35",
+                "while parsing 'foreach.error.html')");
     }
 
     @Test
@@ -201,28 +211,10 @@ public class FaceletTest {
 
     JSONObject parseJson(InputStream in) {
         try {
-            byte[] data = readBytes(in);
+            byte[] data = in.readAllBytes();
             return new JSONObject(new String(data, StandardCharsets.UTF_8));
         } catch (Exception exc) {
             throw new RuntimeException("cannot parse json", exc);
-        }
-    }
-
-    static byte[] readBytes(InputStream in) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        try {
-            for (;;) {
-                int available = in.available();
-                if (available <= 0) {
-                    break;
-                }
-                byte[] bytes = new byte[available];
-                in.read(bytes);
-                out.write(bytes);
-            }
-            return out.toByteArray();
-        } finally {
-            in.close();
         }
     }
 }

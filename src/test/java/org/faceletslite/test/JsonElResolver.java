@@ -1,16 +1,13 @@
 package org.faceletslite.test;
 
 
-import java.beans.FeatureDescriptor;
 import java.util.AbstractList;
-import java.util.Collections;
-import java.util.Iterator;
-
-import jakarta.el.ELContext;
-import jakarta.el.ELResolver;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+
+import jakarta.el.ELContext;
+import jakarta.el.ELResolver;
 
 
 public class JsonElResolver extends ELResolver
