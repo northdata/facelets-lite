@@ -12,8 +12,6 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Reads web resources from a servlet context.
- * <p>
- * TODO: Move to facelets-lite.
  * 
  * @author hwellmann
  *
