@@ -34,6 +34,8 @@ public class LocationAwareParser {
     public record Location(int line, int column, String resourceInfo) {
     }
 
+    private static final Location UNKNOWN_LOCATION = new Location(-1, -1, "unknown");
+
     // Single handler implementing both ContentHandler and LexicalHandler
     private static class Handler extends DefaultHandler implements LexicalHandler {
 
@@ -178,7 +180,7 @@ public class LocationAwareParser {
 
     public static Location getLocation(Node node) {
         Object data = node.getUserData(LOCATION_KEY);
-        return data instanceof Location ? (Location) data : null;
+        return data instanceof Location ? (Location) data : UNKNOWN_LOCATION;
     }
 
     public static Document cloneDocumentPreservingLocation(DocumentBuilder builder, Document original) {
