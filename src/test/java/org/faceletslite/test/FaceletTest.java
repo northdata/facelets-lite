@@ -102,6 +102,13 @@ public class FaceletTest {
     }
 
     @Test
+    void testUseBeanMissingContextObject() {
+        assertThatExceptionOfType(RuntimeException.class)
+            .isThrownBy(() -> compile("usebean.wrongclass.html", null))
+            .withMessageContaining("no context object named 'person' found for useBean");
+    }
+
+    @Test
     public void testCData() {
         try {
             String output = compile("cdata.html", null);
