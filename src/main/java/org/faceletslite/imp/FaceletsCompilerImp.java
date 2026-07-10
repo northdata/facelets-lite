@@ -2,8 +2,8 @@ package org.faceletslite.imp;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -113,22 +113,10 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
     }
 
     private String read(InputStream in) throws IOException {
-        try {
-            InputStreamReader reader = new InputStreamReader(in, "utf-8");
-            StringBuilder builder = new StringBuilder();
-            char[] buffer = new char[2048];
-            int read;
-            while ((read = reader.read(buffer)) > 0) {
-                // skip signature, if any
-                if (buffer[0] == '\uFEFF') {
-                    builder.append(buffer, 1, read - 1);
-                } else {
-                    builder.append(buffer, 0, read);
-                }
-            }
-            return builder.toString();
-        } finally {
-            in.close();
+        try (in) {
+            String text = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            // skip byte order mark, if any
+            return text.startsWith("\uFEFF") ? text.substring(1) : text;
         }
     }
 
