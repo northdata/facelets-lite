@@ -1,29 +1,25 @@
 package org.faceletslite.imp;
 
 import static org.faceletslite.imp.LocationAwareParser.getLocation;
-import static org.faceletslite.imp.LocationAwareParser.parseWithLocations;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.stream.StreamResult;
 
-import org.dom4j.io.DOMReader;
+import org.dom4j.DocumentFactory;
 import org.dom4j.io.HTMLWriter;
 import org.dom4j.io.OutputFormat;
 import org.faceletslite.Configuration;
@@ -33,21 +29,20 @@ import org.faceletslite.FaceletsCompiler;
 import org.faceletslite.Namespace;
 import org.faceletslite.ResourceReader;
 import org.faceletslite.imp.LocationAwareParser.Location;
+import org.jdom2.Attribute;
+import org.jdom2.CDATA;
+import org.jdom2.Comment;
+import org.jdom2.Content;
+import org.jdom2.DocType;
+import org.jdom2.Document;
+import org.jdom2.Element;
+import org.jdom2.JDOMException;
+import org.jdom2.Parent;
+import org.jdom2.ProcessingInstruction;
+import org.jdom2.Text;
+import org.jdom2.input.JDOMParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.Attr;
-import org.w3c.dom.Comment;
-import org.w3c.dom.Document;
-import org.w3c.dom.DocumentType;
-import org.w3c.dom.Element;
-import org.w3c.dom.NamedNodeMap;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.w3c.dom.ProcessingInstruction;
-import org.w3c.dom.Text;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
-import org.xml.sax.SAXParseException;
 
 import jakarta.el.ELContext;
 import jakarta.el.ELResolver;
@@ -89,7 +84,6 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
     private final FunctionMapper functionMapper;
     private final ELResolver resolver;
     private final Map<String, Facelet> templateCache;
-    private final Pool<DocumentBuilder> documentBuilderPool;
 
     public FaceletsCompilerImp() {
         this(new DefaultConfiguration());
@@ -100,17 +94,6 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
         this.templateCache = configuration.getCache();
         this.resolver = configuration.getELResolver();
         this.functionMapper = configuration.getFunctionMapper();
-        this.documentBuilderPool = new Pool<DocumentBuilder>() {
-
-            @Override
-            public DocumentBuilder create() {
-                DocumentBuilder result = configuration.createDocumentBuilder();
-                if (!result.isNamespaceAware()) {
-                    throw new RuntimeException("document builder factory must be set to namespace-aware.");
-                }
-                return result;
-            }
-        };
         ResourceReader standardResourceReader = configuration.getResourceReader();
         if (standardResourceReader != null) {
             resourceReaderByNsUri.put(Namespaces.None, standardResourceReader);
@@ -193,12 +176,11 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
     @Override
     public String html(Document node) {
         StringWriter writer = new StringWriter();
-        try {
-            DOMReader reader = new DOMReader();
-            org.dom4j.Document document = reader.read(node);
             OutputFormat format = new OutputFormat();
             format.setExpandEmptyElements(true);
-            HTMLWriter htmlWriter = new EscapeAwareHtmlWriter(writer, format);
+        try (HTMLWriter htmlWriter = new EscapeAwareHtmlWriter(writer, format)){
+            org.dom4j.Document document = toDom4j(node);
+            
             if (document.getRootElement().getName().equals(DUMMY_ROOT)) {
                 htmlWriter.write(document.getRootElement().content());
             } else {
@@ -210,23 +192,61 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
         }
     }
 
-    private Document newDocument() {
-        DocumentBuilder builder = documentBuilderPool.get();
-        try {
-            return builder.newDocument();
-        } finally {
-            documentBuilderPool.release(builder);
+    private static org.dom4j.Document toDom4j(Document jdomDocument) {
+        DocumentFactory factory = DocumentFactory.getInstance();
+        org.dom4j.Document result = factory.createDocument();
+        DocType docType = jdomDocument.getDocType();
+        if (docType != null) {
+            result.addDocType(docType.getElementName(), docType.getPublicID(), docType.getSystemID());
         }
+        for (Content content: jdomDocument.getContent()) {
+            if (content instanceof Element element) {
+                result.setRootElement(toDom4j(element, factory));
+            } else if (content instanceof Comment comment) {
+                result.addComment(comment.getText());
+            } else if (content instanceof ProcessingInstruction pi) {
+                result.addProcessingInstruction(pi.getTarget(), pi.getData());
+            }
+        }
+        return result;
+    }
+
+    private static org.dom4j.Element toDom4j(Element element, DocumentFactory factory) {
+        org.dom4j.Element result = factory.createElement(element.getName());
+        List<Attribute> attributes = new ArrayList<Attribute>(element.getAttributes());
+        // The previous W3C DOM (Xerces) implementation stored attributes sorted by
+        // qualified name; keep that ordering so the rendered output is stable.
+        attributes.sort(Comparator.comparing(Attribute::getQualifiedName));
+        for (Attribute attr: attributes) {
+            result.addAttribute(attr.getName(), attr.getValue());
+        }
+        for (Content content: element.getContent()) {
+            if (content instanceof Element child) {
+                result.add(toDom4j(child, factory));
+            } else if (content instanceof CDATA cdata) {
+                result.addCDATA(cdata.getText());
+            } else if (content instanceof Text text) {
+                result.addText(text.getText());
+            } else if (content instanceof Comment comment) {
+                result.addComment(comment.getText());
+            } else if (content instanceof ProcessingInstruction pi) {
+                result.addProcessingInstruction(pi.getTarget(), pi.getData());
+            }
+        }
+        return result;
+    }
+
+    private Document newDocument() {
+        return new Document();
     }    
 
     class FaceletImp implements Facelet {
 
-        private final Pool<Document> sourceDocumentWorkingCopies;
+        private final Document sourceDocument;
         private final String resourceName;
         private final String namespace;
         private final String sourceText;
         private final Map<String, String> environmentVars;
-        //private final String sourceDocType;
         private final String sourceDocTypeName;
         private final String sourceDocTypePublicId;
         private final String sourceDocTypeSystemId;
@@ -235,28 +255,12 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
             this.sourceText = sourceText;
             this.resourceName = resourceName;
             this.namespace = namespace;
-            final Document sourceDocument = parse();
-            //this.sourceDocType = Dom.getDocType(sourceDocument);
-            DocumentType sourceDocType = sourceDocument.getDoctype();
-            sourceDocTypeName = sourceDocType == null ? null : sourceDocType.getName();
-            sourceDocTypePublicId = sourceDocType == null ? null : sourceDocType.getPublicId();
-            sourceDocTypeSystemId = sourceDocType == null ? null : sourceDocType.getSystemId();
+            this.sourceDocument = parse();
+            DocType sourceDocType = sourceDocument.getDocType();
+            sourceDocTypeName = sourceDocType == null ? null : sourceDocType.getElementName();
+            sourceDocTypePublicId = sourceDocType == null ? null : sourceDocType.getPublicID();
+            sourceDocTypeSystemId = sourceDocType == null ? null : sourceDocType.getSystemID();
 
-            // even read access to a document is not thread-safe, so we pool!
-            this.sourceDocumentWorkingCopies = new Pool<Document>() {
-
-                @Override
-                protected Document create() {
-                    DocumentBuilder builder = documentBuilderPool.get();
-                    try {
-                        synchronized (sourceDocument) {
-                            return LocationAwareParser.cloneDocumentPreservingLocation(builder, sourceDocument);
-                        }
-                    } finally {
-                        documentBuilderPool.release(builder);
-                    }
-                };
-            };
             this.environmentVars = new HashMap<String, String>();
             environmentVars.put(Environment.Namespace, namespace);
             environmentVars.put(Environment.ResourceName, resourceName);
@@ -269,29 +273,21 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
         }
 
         private Document parse() throws IOException {
-            DocumentBuilder builder = documentBuilderPool.get();
-            StringReader reader = new StringReader(sourceText);
             String resourceInfo = getResourceInfo(resourceName, namespace);
             try {
-                return parseWithLocations(builder, new InputSource(reader), resourceInfo);
-            } catch (SAXException exc) {
-                if (exc instanceof SAXParseException) {
-                    SAXParseException parseExc = (SAXParseException) exc;
-                    int line = parseExc.getLineNumber();
-                    int col = parseExc.getColumnNumber();
-                    if (line >= 0) {
-                        resourceInfo += ", line " + line;
-                        if (col > 0) {
-                            resourceInfo += ", column " + col;
-                        }
+                return LocationAwareParser.parse(sourceText, resourceInfo);
+            } catch (JDOMParseException exc) {
+                int line = exc.getLineNumber();
+                int col = exc.getColumnNumber();
+                if (line >= 0) {
+                    resourceInfo += ", line " + line;
+                    if (col > 0) {
+                        resourceInfo += ", column " + col;
                     }
                 }
                 throw new RuntimeException("cannot parse " + resourceInfo + ":\r\n\t" + exc.getMessage(), exc);
-            } catch (ParserConfigurationException exc) {
-                throw new RuntimeException(exc);
-            } finally {
-                reader.close();
-                documentBuilderPool.release(builder);
+            } catch (JDOMException exc) {
+                throw new RuntimeException("cannot parse " + resourceInfo + ":\r\n\t" + exc.getMessage(), exc);
             }
         }
 
@@ -350,55 +346,43 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
         @Override
         public String render(Object scope) {
             Document targetDocument = newDocument();
-            List<Node> processedNodes = process(targetDocument, new MutableContext().scope(scope), null);
+            List<Content> processedNodes = process(targetDocument, new MutableContext().scope(scope), null);
 
             if (hasDocType(processedNodes)) {
                 Dom.appendChildren(targetDocument, processedNodes);
 
             } else {
-                Element root = targetDocument.createElement(DUMMY_ROOT);
-                targetDocument.appendChild(root);
+                Element root = new Element(DUMMY_ROOT);
+                targetDocument.addContent(root);
                 Dom.appendChildren(root, processedNodes);
             }
             return html(targetDocument);
         }
 
-        boolean hasDocType(List<Node> nodes) {
+        boolean hasDocType(List<Content> nodes) {
             if (nodes.size() > 0) {
-                if (nodes.get(0) instanceof DocumentType) {
+                if (nodes.get(0) instanceof DocType) {
                     return true;
                 }
             }
             return false;
         }
 
-        List<Node> process(Document targetDocument, MutableContext context, Map<String, SourceFragment> defines) {
+        List<Content> process(Document targetDocument, MutableContext context, Map<String, SourceFragment> defines) {
             return process(new Processor(targetDocument, context, defines));
         }
 
-        List<Node> process(Processor processor) {
-            Document workingCopy = sourceDocumentWorkingCopies.get();
-            try {
-                Node sourceRoot = getRootNode(workingCopy);
-                List<Node> result = new ArrayList<Node>();
-                if (Is.notEmpty(sourceDocTypeName)) {
-                    result.add(
-                        processor
-                            .getTargetDocument()
-                            .getImplementation()
-                            .createDocumentType(
-                                sourceDocTypeName,
-                                sourceDocTypePublicId,
-                                sourceDocTypeSystemId));
-                }
-                result.addAll(processor.compile(sourceRoot));
-                return result;
-            } finally {
-                sourceDocumentWorkingCopies.release(workingCopy);
+        List<Content> process(Processor processor) {
+            Parent sourceRoot = getRootNode(sourceDocument);
+            List<Content> result = new ArrayList<Content>();
+            if (Is.notEmpty(sourceDocTypeName)) {
+                result.add(new DocType(sourceDocTypeName, sourceDocTypePublicId, sourceDocTypeSystemId));
             }
+            result.addAll(processor.compile(sourceRoot));
+            return result;
         }
 
-        Node getRootNode(Document sourceDocument) {
+        Parent getRootNode(Document sourceDocument) {
             for (Element composition: Dom.elementsByTagName(sourceDocument, Namespaces.Ui, "composition")) {
                 return composition;
             }
@@ -430,14 +414,13 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                 return new Processor(targetDocument, context, defines);
             }
 
-            List<Node> compileHtmlTag(Element sourceElement) {
-                Element targetElement = getTargetDocument().createElement(sourceElement.getTagName());
-                for (Attr attr: Dom.attrs(sourceElement)) {
-                    String name = attr.getName();
-                    if (isHtmlNamespace(Dom.nsUri(attr)) && !name.startsWith("xmlns")) {
+            List<Content> compileHtmlTag(Element sourceElement) {
+                Element targetElement = new Element(sourceElement.getName());
+                for (Attribute attr: Dom.attrs(sourceElement)) {
+                    if (isHtmlNamespace(Dom.nsUri(attr))) {
                         String newValue = eval(attr);
                         if (Is.notEmpty(newValue)) {
-                            targetElement.setAttribute(name, newValue);
+                            targetElement.setAttribute(attr.getName(), newValue);
                         }
                     }
                 }
@@ -445,8 +428,8 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                 return nodes(targetElement);
             }
 
-            List<Node> compileJspCoreTag(Element element) {
-                String tagName = element.getLocalName();
+            List<Content> compileJspCoreTag(Element element) {
+                String tagName = element.getName();
                 if ("set".equals(tagName)) {
                     Object value = attr(element, "value", Object.class);
                     String var = requiredAttr(element, "var", String.class);
@@ -464,7 +447,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                     return nodes();
                 }
                 if ("forEach".equalsIgnoreCase(tagName)) {
-                    List<Node> result = new ArrayList<Node>();
+                    List<Content> result = new ArrayList<Content>();
                     Object _items = attr(element, "items", Object.class);
                     Iterable<?> iterable = null;
                     if (_items == null) {
@@ -519,8 +502,8 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                 throw error("invalid core tag name '" + tagName + "'", getLocation(element));
             }
 
-            List<Node> compileUiTag(Element element) {
-                String tagName = element.getLocalName();
+            List<Content> compileUiTag(Element element) {
+                String tagName = element.getName();
                 if ("with".equals(tagName)) {
                     Object value = attr(element, "value", Object.class);
                     MutableContext newContext = value == null ? context : context.nest().scope(value);
@@ -590,8 +573,8 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                 throw error("invalid ui tag name '" + tagName + "'", getLocation(element));
             }
 
-            List<Node> compileJsfHTag(Element element) {
-                String tagName = element.getLocalName();
+            List<Content> compileJsfHTag(Element element) {
+                String tagName = element.getName();
                 if ("outputText".equals(tagName)) {
                     String value = attr(element, "value", String.class);
                     if (Is.empty(value)) {
@@ -604,8 +587,8 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                 throw error("invalid h tag name '" + tagName + "'", getLocation(element));
             }
 
-            List<Node> compileCustomTag(Element element) {
-                String tagName = element.getLocalName();
+            List<Content> compileCustomTag(Element element) {
+                String tagName = element.getName();
                 String nsUri = Dom.nsUri(element);
                 Namespace namespace = namespaceByUri.get(nsUri);
                 if (namespace != null) {
@@ -615,10 +598,10 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                     }
                 }
                 MutableContext newContext = context.nest();
-                for (Attr attr: Dom.attrs(element)) {
+                for (Attribute attr: Dom.attrs(element)) {
                     newContext.put(
                         attr.getName(),
-                        eval(attr.getValue(), getLocation(attr.getOwnerElement()), Object.class));
+                        eval(attr.getValue(), getLocation(attr), Object.class));
                 }
                 try {
                     FaceletImp template = FaceletsCompilerImp.this.compile(tagName, nsUri);
@@ -626,24 +609,27 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                         newContext,
                         collectDefines(element)));
                 } catch (IOException exc) {
-                    throw error("cannot load " + element.getPrefix() + ":" + tagName, getLocation(element), exc);
+                    throw error("cannot load " + element.getNamespacePrefix() + ":" + tagName, getLocation(element), exc);
                 }
             }
 
-            List<Node> compile(Node sourceNode) {
-                if (sourceNode instanceof Document) {
-                    return compile(sourceNode.getChildNodes());
-                } else if (sourceNode instanceof Text) {
-                    Text text = (Text) sourceNode;
-                    String sourceText = text.getData();
+            List<Content> compile(Parent sourceNode) {
+                if (sourceNode instanceof Document document) {
+                    return compileList(document.getContent());
+                }
+                return compileContent((Content) sourceNode);
+            }
+
+            List<Content> compileContent(Content sourceNode) {
+                if (sourceNode instanceof Text text) {
+                    String sourceText = text.getText();
                     String targetText = eval(sourceText, getLocation(sourceNode), String.class);
                     if (Is.empty(targetText)) {
                         return nodes();
                     } else {
                         return text(targetText, true);
                     }
-                } else if (sourceNode instanceof Element) {
-                    Element sourceElement = (Element) sourceNode;
+                } else if (sourceNode instanceof Element sourceElement) {
                     String nsUri = Dom.nsUri(sourceElement);
                     if (isHtmlNamespace(nsUri)) {
                         return compileHtmlTag(sourceElement);
@@ -656,15 +642,11 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                     } else {
                         return compileCustomTag(sourceElement);
                     }
-                } else if (sourceNode instanceof Comment) {
+                } else if (sourceNode instanceof Comment comment) {
                     if (!swallowComments) {
-                        Comment comment = (Comment) sourceNode;
-                        String commentText = comment.getData();
-                        return nodes(
-                            getTargetDocument().createComment(commentText));
+                        return nodes(new Comment(comment.getText()));
                     }
-                } else if (sourceNode instanceof ProcessingInstruction) {
-                    ProcessingInstruction instruction = (ProcessingInstruction) sourceNode;
+                } else if (sourceNode instanceof ProcessingInstruction instruction) {
                     if ("facelets".equals(instruction.getTarget())) {
                         String data = instruction.getData().trim();
                         if (data.equals("suspendEvaluation")) {
@@ -683,21 +665,25 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                 return nodes();
             }
 
-            List<Node> compile(NodeList sourceNodes) {
-                List<Node> result = new ArrayList<Node>();
-                for (Node node: Dom.iterate(sourceNodes)) {
+            List<Content> compileList(List<? extends Content> sourceNodes) {
+                List<Content> result = new ArrayList<Content>();
+                for (Content node: sourceNodes) {
                     result.addAll(
-                        compile(node));
+                        compileContent(node));
                 }
                 return result;
             }
 
             @Override
-            public List<Node> compileChildren(Node sourceNode) {
-                return compile(sourceNode.getChildNodes());
+            public List<Content> compileChildren(Element sourceElement) {
+                return compileList(sourceElement.getContent());
             }
 
-            public List<Node> applyTemplate(Element sourceElement, String templateAttr) {
+            List<Content> compileChildren(Parent sourceParent) {
+                return compileList(Dom.content(sourceParent));
+            }
+
+            public List<Content> applyTemplate(Element sourceElement, String templateAttr) {
                 try {
                     FaceletImp template = FaceletsCompilerImp.this.compile(normalizeResourceNamePath(templateAttr));
                     return template.process(
@@ -710,30 +696,29 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
             }
 
             @Override
-            public List<Node> text(String text, boolean escape) {
-                List<Node> result = new ArrayList<Node>();
-                Document document = getTargetDocument();
+            public List<Content> text(String text, boolean escape) {
+                List<Content> result = new ArrayList<Content>();
                 if (!escape) {
                     result.add(
-                        document.createProcessingInstruction(StreamResult.PI_DISABLE_OUTPUT_ESCAPING, ""));
+                        new ProcessingInstruction(StreamResult.PI_DISABLE_OUTPUT_ESCAPING, ""));
                 }
-                result.add(document.createTextNode(text));
+                result.add(new Text(text));
                 if (!escape) {
                     result.add(
-                        document.createProcessingInstruction(StreamResult.PI_ENABLE_OUTPUT_ESCAPING, ""));
+                        new ProcessingInstruction(StreamResult.PI_ENABLE_OUTPUT_ESCAPING, ""));
                 }
                 return result;
             }
 
-            public List<Node> nodes(Node... nodes) {
+            public List<Content> nodes(Content... nodes) {
                 switch (nodes.length) {
                 case 0:
                     return Collections.emptyList();
                 case 1:
                     return Collections.singletonList(nodes[0]);
                 }
-                List<Node> result = new ArrayList<Node>();
-                for (Node node: nodes) {
+                List<Content> result = new ArrayList<Content>();
+                for (Content node: nodes) {
                     result.add(node);
                 }
                 return result;
@@ -766,13 +751,13 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
                 return Is.empty(nsUri) || Namespaces.Xhtml.equals(nsUri);
             }
 
-            String eval(Attr attr) {
+            String eval(Attribute attr) {
                 return eval(attr.getValue(), getLocation(attr), String.class);
             }
 
             @Override
             public <T> T attr(Element element, String name, Class<T> clazz) {
-                String value = element.getAttribute(name);
+                String value = element.getAttributeValue(name);
                 return Is.empty(value) ? null : eval(value, getLocation(element), clazz);
             }
 
@@ -780,7 +765,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
             public <T> T requiredAttr(Element element, String name, Class<T> clazz) {
                 T result = attr(element, name, clazz);
                 if (Is.empty(result)) {
-                    throw error("missing attribute '" + name + "' in " + element.getTagName(), getLocation(element));
+                    throw error("missing attribute '" + name + "' in " + element.getName(), getLocation(element));
                 }
                 return result;
             }
@@ -801,17 +786,17 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 
     class SourceFragment {
 
-        private final Node root;
+        private final Element root;
         private final MutableContext context;
         private final Map<String, SourceFragment> defines;
 
-        public SourceFragment(Node root, MutableContext context, Map<String, SourceFragment> defines) {
+        public SourceFragment(Element root, MutableContext context, Map<String, SourceFragment> defines) {
             this.root = root;
             this.context = context;
             this.defines = defines;
         }
 
-        public Node getRoot() {
+        public Element getRoot() {
             return root;
         }
 
@@ -994,127 +979,68 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
 
     static class Dom {
 
-        static Iterable<Node> iterate(NodeList nodeList) {
-            List<Node> nodes = new ArrayList<Node>();
-            if (nodeList != null) {
-                for (int i = 0; i < nodeList.getLength(); ++i) {
-                    nodes.add(nodeList.item(i));
+        static List<Content> content(Parent parent) {
+            if (parent instanceof Document document) {
+                return document.getContent();
+            }
+            return ((Element) parent).getContent();
+        }
+
+        static Iterable<Element> elementsByTagName(Parent parent, String nsUri, String tagName) {
+            List<Element> result = new ArrayList<Element>();
+            for (Content content: content(parent)) {
+                if (content instanceof Element element) {
+                    collectByTagName(element, nsUri, tagName, result);
                 }
-            }
-            return nodes;
-        }
-
-        static Iterable<Element> elementsByTagName(Node parent, String nsUri, String tagName) {
-            if (parent instanceof Document) {
-                return elements(((Document) parent).getElementsByTagNameNS(nsUri, tagName));
-            }
-            if (parent instanceof Element) {
-                return elements(((Element) parent).getElementsByTagNameNS(nsUri, tagName));
-            }
-            return Collections.emptyList();
-        }
-
-        static Iterable<Element> childrenByTagName(Node parent, Set<String> nsUris, String tagName) {
-            List<Element> elements = new ArrayList<Element>();
-            NodeList nodeList = parent.getChildNodes();
-            for (int i = 0; i < nodeList.getLength(); ++i) {
-                Node node = nodeList.item(i);
-                if (node instanceof Element) {
-                    Element element = (Element) node;
-                    if (element.getLocalName().equals(tagName) && nsUris.contains(nsUri(element))) {
-                        elements.add((Element) node);
-                    }
-                }
-            }
-            return elements;
-        }
-
-        static Iterable<Element> elements(NodeList nodeList) {
-            List<Element> elements = new ArrayList<Element>();
-            for (int i = 0; i < nodeList.getLength(); ++i) {
-                Node node = nodeList.item(i);
-                if (node instanceof Element) {
-                    elements.add((Element) node);
-                }
-            }
-            return elements;
-        }
-
-        static Iterable<Attr> attrs(Element element) {
-            return attrs(element.getAttributes());
-        }
-
-        static Iterable<Attr> attrs(NamedNodeMap nodeMap) {
-            List<Attr> attrs = new ArrayList<Attr>();
-            for (int i = 0; i < nodeMap.getLength(); ++i) {
-                Node node = nodeMap.item(i);
-                if (node instanceof Attr) {
-                    attrs.add((Attr) node);
-                }
-            }
-            return attrs;
-        }
-
-        static void appendChildren(Node parent, List<Node> children) {
-            for (Node child: children) {
-                parent.appendChild(child);
-            }
-        }
-
-        static Document document(Node parent) {
-            return (parent instanceof Document) ? (Document) parent : parent.getOwnerDocument();
-        }
-
-        static String nsUri(Node node) {
-            //return node.getNamespaceURI(); <-- buggy in old XML implementations, such as the JDK's default one
-            return node.lookupNamespaceURI(node.getPrefix());
-        }
-
-        static String getDocType(Document document) {
-            DocumentType docType = document.getDoctype();
-            if (docType == null) {
-                return null;
-            }
-            String docTypeName = docType.getName();
-            String publicId = docType.getPublicId();
-            String systemId = docType.getSystemId();
-            if (Is.empty(docTypeName)) {
-                return null;
-            }
-            StringBuffer result = new StringBuffer("<!DOCTYPE ");
-            result.append(docTypeName);
-            if (Is.notEmpty(publicId)) {
-                result.append(" PUBLIC \"");
-                result.append(publicId);
-                result.append('"');
-            }
-            if (Is.notEmpty(systemId)) {
-                result.append(" \"");
-                result.append(systemId);
-                result.append('"');
-            }
-            result.append(">");
-            return result.toString();
-        }
-    }
-
-    static abstract class Pool<T> {
-
-        private final ConcurrentLinkedQueue<T> container = new ConcurrentLinkedQueue<T>();
-
-        public T get() {
-            T result = container.poll();
-            if (result == null) {
-                result = create();
             }
             return result;
         }
 
-        public void release(T object) {
-            container.offer(object);
+        private static void collectByTagName(Element element, String nsUri, String tagName, List<Element> result) {
+            if (element.getName().equals(tagName) && nsUri.equals(element.getNamespaceURI())) {
+                result.add(element);
+            }
+            for (Element child: element.getChildren()) {
+                collectByTagName(child, nsUri, tagName, result);
+            }
         }
 
-        protected abstract T create();
+        static Iterable<Element> childrenByTagName(Parent parent, Set<String> nsUris, String tagName) {
+            List<Element> elements = new ArrayList<Element>();
+            for (Content content: content(parent)) {
+                if (content instanceof Element element
+                    && element.getName().equals(tagName)
+                    && nsUris.contains(element.getNamespaceURI())) {
+                    elements.add(element);
+                }
+            }
+            return elements;
+        }
+
+        static List<Attribute> attrs(Element element) {
+            return element.getAttributes();
+        }
+
+        static void appendChildren(Parent parent, List<Content> children) {
+            if (parent instanceof Document document) {
+                for (Content child: children) {
+                    document.addContent(child);
+                }
+            } else {
+                Element element = (Element) parent;
+                for (Content child: children) {
+                    element.addContent(child);
+                }
+            }
+        }
+
+        static String nsUri(Element element) {
+            return element.getNamespaceURI();
+        }
+
+        static String nsUri(Attribute attr) {
+            return attr.getNamespaceURI();
+        }
     }
 
     static class Const {

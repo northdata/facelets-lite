@@ -2,9 +2,9 @@ package org.faceletslite;
 
 import java.util.List;
 
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
+import org.jdom2.Content;
+import org.jdom2.Document;
+import org.jdom2.Element;
 
 public interface CustomTag
 {
@@ -17,10 +17,10 @@ public interface CustomTag
 	{
 	    <T> T attr(Element element, String name, Class<T> clazz);
 	    <T> T requiredAttr(Element element, String name, Class<T> clazz);
-		List<Node> compileChildren(Node node);
-		List<Node> text(String text, boolean escape);
+		List<Content> compileChildren(Element element);
+		List<Content> text(String text, boolean escape);
 		Document getTargetDocument();
 	}
 
-	public List<Node> process(Element element, Processor processor, Renderer renderer);
+	public List<Content> process(Element element, Processor processor, Renderer renderer);
 }

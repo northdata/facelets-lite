@@ -9,10 +9,6 @@ public interface Configuration
 	ResourceReader getResourceReader();
 	List<Namespace> getCustomNamespaces();
 
-	// XML Handling
-	javax.xml.parsers.DocumentBuilder createDocumentBuilder();
-	javax.xml.transform.Transformer createDocumentTransformer();
-	
 	// EL Expression Language 
 	jakarta.el.ExpressionFactory getExpressionFactory();
 	jakarta.el.ELResolver getELResolver();
