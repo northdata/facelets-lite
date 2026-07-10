@@ -49,6 +49,48 @@ class Processor implements CustomTag.Processor {
         return targetDocument;
     }
 
+    @Override
+    public List<Content> compileChildren(Element sourceElement) {
+        return compileList(sourceElement.getContent());
+    }
+
+    @Override
+    public List<Content> text(String text, boolean escape) {
+        List<Content> result = new ArrayList<Content>();
+        if (!escape) {
+            result.add(
+                new ProcessingInstruction(StreamResult.PI_DISABLE_OUTPUT_ESCAPING, ""));
+        }
+        result.add(new Text(text));
+        if (!escape) {
+            result.add(
+                new ProcessingInstruction(StreamResult.PI_ENABLE_OUTPUT_ESCAPING, ""));
+        }
+        return result;
+    }
+
+    @Override
+    public <T> T attr(Element element, String name, Class<T> clazz) {
+        String value = element.getAttributeValue(name);
+        return Is.empty(value) ? null : eval(value, getLocation(element), clazz);
+    }
+
+    @Override
+    public <T> T requiredAttr(Element element, String name, Class<T> clazz) {
+        T result = attr(element, name, clazz);
+        if (Is.empty(result)) {
+            throw facelet.error("missing attribute '" + name + "' in " + element.getName(), getLocation(element));
+        }
+        return result;
+    }
+
+    List<Content> compile(Parent sourceNode) {
+        if (sourceNode instanceof Document document) {
+            return compileList(document.getContent());
+        }
+        return compileContent((Content) sourceNode);
+    }
+
     private Processor with(MutableContext context, Map<String, SourceFragment> defines) {
         return new Processor(facelet, targetDocument, context, defines);
     }
@@ -252,13 +294,6 @@ class Processor implements CustomTag.Processor {
         }
     }
 
-    List<Content> compile(Parent sourceNode) {
-        if (sourceNode instanceof Document document) {
-            return compileList(document.getContent());
-        }
-        return compileContent((Content) sourceNode);
-    }
-
     private List<Content> compileContent(Content sourceNode) {
         if (sourceNode instanceof Text text) {
             String sourceText = text.getText();
@@ -313,11 +348,6 @@ class Processor implements CustomTag.Processor {
         return result;
     }
 
-    @Override
-    public List<Content> compileChildren(Element sourceElement) {
-        return compileList(sourceElement.getContent());
-    }
-
     private List<Content> compileChildren(Parent sourceParent) {
         return compileList(Dom.content(sourceParent));
     }
@@ -332,21 +362,6 @@ class Processor implements CustomTag.Processor {
         } catch (IOException exc) {
             throw facelet.error("cannot read template '" + templateAttr + "'", getLocation(sourceElement), exc);
         }
-    }
-
-    @Override
-    public List<Content> text(String text, boolean escape) {
-        List<Content> result = new ArrayList<Content>();
-        if (!escape) {
-            result.add(
-                new ProcessingInstruction(StreamResult.PI_DISABLE_OUTPUT_ESCAPING, ""));
-        }
-        result.add(new Text(text));
-        if (!escape) {
-            result.add(
-                new ProcessingInstruction(StreamResult.PI_ENABLE_OUTPUT_ESCAPING, ""));
-        }
-        return result;
     }
 
     private List<Content> nodes(Content... nodes) {
@@ -392,21 +407,6 @@ class Processor implements CustomTag.Processor {
 
     private String eval(Attribute attr) {
         return eval(attr.getValue(), getLocation(attr), String.class);
-    }
-
-    @Override
-    public <T> T attr(Element element, String name, Class<T> clazz) {
-        String value = element.getAttributeValue(name);
-        return Is.empty(value) ? null : eval(value, getLocation(element), clazz);
-    }
-
-    @Override
-    public <T> T requiredAttr(Element element, String name, Class<T> clazz) {
-        T result = attr(element, name, clazz);
-        if (Is.empty(result)) {
-            throw facelet.error("missing attribute '" + name + "' in " + element.getName(), getLocation(element));
-        }
-        return result;
     }
 
     private <T> T eval(String text, Location location, Class<T> clazz) {
