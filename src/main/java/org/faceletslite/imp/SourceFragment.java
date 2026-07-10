@@ -2,7 +2,6 @@ package org.faceletslite.imp;
 
 import java.util.Map;
 
-import org.faceletslite.imp.FaceletsCompilerImp.MutableContext;
 import org.jdom2.Element;
 
 class SourceFragment {
