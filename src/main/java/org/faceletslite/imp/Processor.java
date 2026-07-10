@@ -49,11 +49,11 @@ class Processor implements CustomTag.Processor {
         return targetDocument;
     }
 
-    Processor with(MutableContext context, Map<String, SourceFragment> defines) {
+    private Processor with(MutableContext context, Map<String, SourceFragment> defines) {
         return new Processor(facelet, targetDocument, context, defines);
     }
 
-    List<Content> compileHtmlTag(Element sourceElement) {
+    private List<Content> compileHtmlTag(Element sourceElement) {
         Element targetElement = new Element(sourceElement.getName());
         for (Attribute attr: Dom.attrs(sourceElement)) {
             if (isHtmlNamespace(Dom.nsUri(attr))) {
@@ -67,7 +67,7 @@ class Processor implements CustomTag.Processor {
         return nodes(targetElement);
     }
 
-    List<Content> compileJspCoreTag(Element element) {
+    private List<Content> compileJspCoreTag(Element element) {
         String tagName = element.getName();
         if ("set".equals(tagName)) {
             Object value = attr(element, "value", Object.class);
@@ -141,7 +141,7 @@ class Processor implements CustomTag.Processor {
         throw facelet.error("invalid core tag name '" + tagName + "'", getLocation(element));
     }
 
-    List<Content> compileUiTag(Element element) {
+    private List<Content> compileUiTag(Element element) {
         String tagName = element.getName();
         if ("with".equals(tagName)) {
             Object value = attr(element, "value", Object.class);
@@ -212,7 +212,7 @@ class Processor implements CustomTag.Processor {
         throw facelet.error("invalid ui tag name '" + tagName + "'", getLocation(element));
     }
 
-    List<Content> compileJsfHTag(Element element) {
+    private List<Content> compileJsfHTag(Element element) {
         String tagName = element.getName();
         if ("outputText".equals(tagName)) {
             String value = attr(element, "value", String.class);
@@ -226,7 +226,7 @@ class Processor implements CustomTag.Processor {
         throw facelet.error("invalid h tag name '" + tagName + "'", getLocation(element));
     }
 
-    List<Content> compileCustomTag(Element element) {
+    private List<Content> compileCustomTag(Element element) {
         String tagName = element.getName();
         String nsUri = Dom.nsUri(element);
         Namespace namespace = compiler.namespaceByUri.get(nsUri);
@@ -259,7 +259,7 @@ class Processor implements CustomTag.Processor {
         return compileContent((Content) sourceNode);
     }
 
-    List<Content> compileContent(Content sourceNode) {
+    private List<Content> compileContent(Content sourceNode) {
         if (sourceNode instanceof Text text) {
             String sourceText = text.getText();
             String targetText = eval(sourceText, getLocation(sourceNode), String.class);
@@ -304,7 +304,7 @@ class Processor implements CustomTag.Processor {
         return nodes();
     }
 
-    List<Content> compileList(List<? extends Content> sourceNodes) {
+    private List<Content> compileList(List<? extends Content> sourceNodes) {
         List<Content> result = new ArrayList<Content>();
         for (Content node: sourceNodes) {
             result.addAll(
@@ -318,11 +318,11 @@ class Processor implements CustomTag.Processor {
         return compileList(sourceElement.getContent());
     }
 
-    List<Content> compileChildren(Parent sourceParent) {
+    private List<Content> compileChildren(Parent sourceParent) {
         return compileList(Dom.content(sourceParent));
     }
 
-    public List<Content> applyTemplate(Element sourceElement, String templateAttr) {
+    private List<Content> applyTemplate(Element sourceElement, String templateAttr) {
         try {
             FaceletImp template = compiler.compile(facelet.normalizeResourceNamePath(templateAttr));
             return template.process(
@@ -349,7 +349,7 @@ class Processor implements CustomTag.Processor {
         return result;
     }
 
-    public List<Content> nodes(Content... nodes) {
+    private List<Content> nodes(Content... nodes) {
         switch (nodes.length) {
         case 0:
             return Collections.emptyList();
@@ -363,7 +363,7 @@ class Processor implements CustomTag.Processor {
         return result;
     }
 
-    Map<String, SourceFragment> collectDefines(Element parent) {
+    private Map<String, SourceFragment> collectDefines(Element parent) {
         Map<String, SourceFragment> result = new HashMap<String, SourceFragment>();
         if (defines != null) {
             result.putAll(defines);
@@ -376,7 +376,7 @@ class Processor implements CustomTag.Processor {
         return result;
     }
 
-    MutableContext collectParams(Element parent) {
+    private MutableContext collectParams(Element parent) {
         MutableContext result = context.nest();
         for (Element param: Dom.childrenByTagName(parent, Namespaces.UiEquivalent, "param")) {
             result.put(
@@ -386,11 +386,11 @@ class Processor implements CustomTag.Processor {
         return result;
     }
 
-    boolean isHtmlNamespace(String nsUri) {
+    private boolean isHtmlNamespace(String nsUri) {
         return Is.empty(nsUri) || Namespaces.Xhtml.equals(nsUri);
     }
 
-    String eval(Attribute attr) {
+    private String eval(Attribute attr) {
         return eval(attr.getValue(), getLocation(attr), String.class);
     }
 
@@ -409,7 +409,7 @@ class Processor implements CustomTag.Processor {
         return result;
     }
 
-    <T> T eval(String text, Location location, Class<T> clazz) {
+    private <T> T eval(String text, Location location, Class<T> clazz) {
         try {
             return context.eval(
                 text,

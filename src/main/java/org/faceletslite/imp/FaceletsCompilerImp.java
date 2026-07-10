@@ -112,7 +112,7 @@ public class FaceletsCompilerImp implements FaceletsCompiler, CustomTag.Renderer
         return resourceInfo;
     }
 
-    public String read(InputStream in) throws IOException {
+    private String read(InputStream in) throws IOException {
         try {
             InputStreamReader reader = new InputStreamReader(in, "utf-8");
             StringBuilder builder = new StringBuilder();

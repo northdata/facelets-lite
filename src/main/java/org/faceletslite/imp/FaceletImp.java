@@ -70,7 +70,7 @@ class FaceletImp implements Facelet {
         }
     }
 
-    public String getResourceName() {
+    private String getResourceName() {
         return resourceName;
     }
 
@@ -83,7 +83,7 @@ class FaceletImp implements Facelet {
         return sourceText;
     }
 
-    String getResourcePath() {
+    private String getResourcePath() {
         String result = "";
         int lastIndexOfSlash = resourceName.lastIndexOf("/");
         if (lastIndexOfSlash >= 0) {
@@ -100,7 +100,7 @@ class FaceletImp implements Facelet {
         return resourceName;
     }
 
-    RuntimeException error(String message, Exception reason) {
+    private RuntimeException error(String message, Exception reason) {
         message += "\r\n\t(while parsing '" + getResourceName() + "'";
         if (Is.notEmpty(namespace)) {
             message += ", namespace " + namespace;
@@ -137,7 +137,7 @@ class FaceletImp implements Facelet {
         return compiler.html(targetDocument);
     }
 
-    boolean hasDocType(List<Content> nodes) {
+    private boolean hasDocType(List<Content> nodes) {
         if (nodes.size() > 0) {
             if (nodes.get(0) instanceof DocType) {
                 return true;
