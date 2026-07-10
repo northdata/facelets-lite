@@ -84,6 +84,24 @@ public class FaceletTest {
     }
 
     @Test
+    void testUseBeanClassNotFound() {
+        assertThatExceptionOfType(RuntimeException.class)
+            .isThrownBy(() -> compile("usebean.error.html", null))
+            .withMessageContaining("cannot load class 'com.example.NoSuchBeanClass'");
+    }
+
+    @Test
+    void testUseBeanWrongClass() {
+        Map<String, Object> context = new HashMap<>();
+        context.put("person", "not a person");
+        assertThatExceptionOfType(RuntimeException.class)
+            .isThrownBy(() -> compile("usebean.wrongclass.html", context))
+            .withMessageContainingAll(
+                "context object 'person' has type java.lang.String",
+                "but useBean requires org.faceletslite.test.Person");
+    }
+
+    @Test
     public void testCData() {
         try {
             String output = compile("cdata.html", null);

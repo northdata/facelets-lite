@@ -8,6 +8,7 @@ public interface Namespaces {
     String Core = "http://java.sun.com/jstl/core";
     String JspCore = "http://java.sun.com/jsp/jstl/core";
     String JsfH = "http://java.sun.com/jsf/html";
+    String Page = "http://java.sun.com/JSP/Page";
     String Xhtml = "http://www.w3.org/1999/xhtml";
     String None = "";
 

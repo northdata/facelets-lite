@@ -313,6 +313,8 @@ class Processor implements CustomTag.Processor {
                 return compileUiTag(sourceElement);
             } else if (Namespaces.JsfH.equals(nsUri)) {
                 return compileJsfHTag(sourceElement);
+            } else if (Namespaces.Page.equals(nsUri)) {
+                return compileJspPageTag(sourceElement);
             } else {
                 return compileCustomTag(sourceElement);
             }
@@ -337,6 +339,33 @@ class Processor implements CustomTag.Processor {
             }
         }
         return nodes();
+    }
+
+    private List<Content> compileJspPageTag(Element element) {
+        String tagName = element.getName();
+        if ("useBean".equals(tagName)) {
+            String id = attr(element, "id", String.class);
+            String className = attr(element, "class", String.class);
+            if (Is.empty(id) || Is.empty(className)) {
+                return nodes();
+            }
+            Class<?> clazz = loadClass(className);
+            if (clazz == null) {
+                throw facelet.error("cannot load class '" + className + "'", getLocation(element));
+            }
+            Object bean = eval("#{" + id + "}", getLocation(element), Object.class);
+            if (bean == null) {
+                throw facelet.error("no context object named '" + id + "' found for useBean", getLocation(element));
+            }
+            if (!clazz.isInstance(bean)) {
+                throw facelet.error(
+                    "context object '" + id + "' has type " + bean.getClass().getName()
+                        + " but useBean requires " + className,
+                    getLocation(element));
+            }
+            return nodes();
+        }
+        throw facelet.error("invalid jsp tag name '" + tagName + "'", getLocation(element));
     }
 
     private List<Content> compileList(List<? extends Content> sourceNodes) {
@@ -420,4 +449,13 @@ class Processor implements CustomTag.Processor {
             throw facelet.error(message, location, exc);
         }
     }
+
+    private static Class<?> loadClass(String className) {
+        try {
+            return Thread.currentThread().getContextClassLoader().loadClass(className);
+        } catch (ClassNotFoundException exc) {
+            return null;
+        }
+    }
+
 }
