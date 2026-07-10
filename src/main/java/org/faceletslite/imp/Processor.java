@@ -200,7 +200,6 @@ class Processor implements CustomTag.Processor {
                 try {
                     FaceletImp template = compiler.compile(facelet.normalizeResourceNamePath(src),
                         namespace == null ? facelet.getNamespace() : namespace);
-                    with(newContext, defines).compileChildren(template.getRootNode(targetDocument));
                     return template.process(targetDocument, newContext, defines);
                 } catch (IOException exc) {
                     throw facelet.error("cannot include '" + src + "'", getLocation(element), exc);
